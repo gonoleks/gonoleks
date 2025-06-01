@@ -1,5 +1,7 @@
 package gonoleks
 
+import "strings"
+
 // RouterGroup represents a group of routes with a common prefix
 type RouterGroup struct {
 	prefix      string
@@ -9,6 +11,9 @@ type RouterGroup struct {
 
 // Group creates a new sub-group with an additional prefix
 func (r *RouterGroup) Group(path string) *RouterGroup {
+	if r.app.settings.CaseInSensitive {
+		path = strings.ToLower(path)
+	}
 	return &RouterGroup{
 		prefix:      r.prefix + path,
 		app:         r.app,
@@ -30,6 +35,9 @@ func (r *RouterGroup) Use(middleware ...handlerFunc) *RouterGroup {
 
 // Handle registers a new request handle and middleware with the given path and custom HTTP method
 func (r *RouterGroup) Handle(httpMethod, path string, handlers ...handlerFunc) *Route {
+	if r.app.settings.CaseInSensitive {
+		path = strings.ToLower(path)
+	}
 	// Combine global middleware + group middleware + route handlers
 	totalHandlers := len(r.app.middlewares) + len(r.middlewares) + len(handlers)
 	finalHandlers := make(handlersChain, totalHandlers)
