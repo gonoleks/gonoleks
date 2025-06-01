@@ -1,0 +1,363 @@
+package gonoleks
+
+import (
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/valyala/fasthttp"
+)
+
+func TestNew(t *testing.T) {
+	// Test with default settings
+	app := New()
+	assert.NotNil(t, app, "New() should return a non-nil instance")
+
+	// Test with custom settings
+	customSettings := &Settings{
+		ServerName:      "GonoleksTest",
+		MaxProcs:        4,
+		CacheSize:       2000,
+		Concurrency:     1024,
+		ReadBufferSize:  8192,
+		DisableCaching:  true,
+		CaseInSensitive: true,
+	}
+
+	app = New(customSettings)
+	assert.NotNil(t, app, "New() with custom settings should return a non-nil instance")
+
+	// Access the internal gonoleks struct to verify settings were applied
+	appImpl := app.(*gonoleks)
+	assert.Equal(t, "GonoleksTest", appImpl.httpServer.Name, "ServerName setting should be applied")
+	assert.Equal(t, 1024, appImpl.httpServer.Concurrency, "Concurrency setting should be applied")
+	assert.Equal(t, 8192, appImpl.httpServer.ReadBufferSize, "ReadBufferSize setting should be applied")
+}
+
+func TestRouteRegistration(t *testing.T) {
+	app := New()
+
+	// Test GET route registration
+	route := app.GET("/test", func(c *Context) {})
+	assert.NotNil(t, route, "GET() should return a non-nil route")
+	assert.Equal(t, "/test", route.Path, "Route path should match")
+	assert.Equal(t, MethodGet, route.Method, "Route method should be GET")
+
+	// Test POST route registration
+	route = app.POST("/test", func(c *Context) {})
+	assert.NotNil(t, route, "POST() should return a non-nil route")
+	assert.Equal(t, "/test", route.Path, "Route path should match")
+	assert.Equal(t, MethodPost, route.Method, "Route method should be POST")
+
+	// Test PUT route registration
+	route = app.PUT("/test", func(c *Context) {})
+	assert.NotNil(t, route, "PUT() should return a non-nil route")
+	assert.Equal(t, "/test", route.Path, "Route path should match")
+	assert.Equal(t, MethodPut, route.Method, "Route method should be PUT")
+
+	// Test DELETE route registration
+	route = app.DELETE("/test", func(c *Context) {})
+	assert.NotNil(t, route, "DELETE() should return a non-nil route")
+	assert.Equal(t, "/test", route.Path, "Route path should match")
+	assert.Equal(t, MethodDelete, route.Method, "Route method should be DELETE")
+
+	// Test PATCH route registration
+	route = app.PATCH("/test", func(c *Context) {})
+	assert.NotNil(t, route, "PATCH() should return a non-nil route")
+	assert.Equal(t, "/test", route.Path, "Route path should match")
+	assert.Equal(t, MethodPatch, route.Method, "Route method should be PATCH")
+
+	// Test HEAD route registration
+	route = app.HEAD("/test", func(c *Context) {})
+	assert.NotNil(t, route, "HEAD() should return a non-nil route")
+	assert.Equal(t, "/test", route.Path, "Route path should match")
+	assert.Equal(t, MethodHead, route.Method, "Route method should be HEAD")
+
+	// Test OPTIONS route registration
+	route = app.OPTIONS("/test", func(c *Context) {})
+	assert.NotNil(t, route, "OPTIONS() should return a non-nil route")
+	assert.Equal(t, "/test", route.Path, "Route path should match")
+	assert.Equal(t, MethodOptions, route.Method, "Route method should be OPTIONS")
+
+	// Test CONNECT route registration
+	route = app.CONNECT("/test", func(c *Context) {})
+	assert.NotNil(t, route, "CONNECT() should return a non-nil route")
+	assert.Equal(t, "/test", route.Path, "Route path should match")
+	assert.Equal(t, MethodConnect, route.Method, "Route method should be CONNECT")
+
+	// Test TRACE route registration
+	route = app.TRACE("/test", func(c *Context) {})
+	assert.NotNil(t, route, "TRACE() should return a non-nil route")
+	assert.Equal(t, "/test", route.Path, "Route path should match")
+	assert.Equal(t, MethodTrace, route.Method, "Route method should be TRACE")
+}
+
+func TestAnyMethod(t *testing.T) {
+	app := New()
+
+	routes := app.Any("/any", func(c *Context) {})
+	assert.Equal(t, 9, len(routes), "Any() should register 9 routes (one for each HTTP method)")
+
+	methods := make(map[string]bool)
+	for _, route := range routes {
+		assert.Equal(t, "/any", route.Path, "All routes should have the same path")
+		methods[route.Method] = true
+	}
+
+	// Verify all methods are registered
+	assert.True(t, methods[MethodGet], "GET method should be registered")
+	assert.True(t, methods[MethodPost], "POST method should be registered")
+	assert.True(t, methods[MethodPut], "PUT method should be registered")
+	assert.True(t, methods[MethodPatch], "PATCH method should be registered")
+	assert.True(t, methods[MethodHead], "HEAD method should be registered")
+	assert.True(t, methods[MethodOptions], "OPTIONS method should be registered")
+	assert.True(t, methods[MethodDelete], "DELETE method should be registered")
+	assert.True(t, methods[MethodConnect], "CONNECT method should be registered")
+	assert.True(t, methods[MethodTrace], "TRACE method should be registered")
+}
+
+func TestMatchMethod(t *testing.T) {
+	app := New()
+
+	methods := []string{MethodGet, MethodPost, MethodPut}
+	routes := app.Match(methods, "/match", func(c *Context) {})
+
+	assert.Equal(t, len(methods), len(routes), "Match() should register the exact number of routes specified")
+
+	registeredMethods := make(map[string]bool)
+	for _, route := range routes {
+		assert.Equal(t, "/match", route.Path, "All routes should have the same path")
+		registeredMethods[route.Method] = true
+	}
+
+	// Verify only specified methods are registered
+	assert.True(t, registeredMethods[MethodGet], "GET method should be registered")
+	assert.True(t, registeredMethods[MethodPost], "POST method should be registered")
+	assert.True(t, registeredMethods[MethodPut], "PUT method should be registered")
+	assert.False(t, registeredMethods[MethodPatch], "PATCH method should not be registered")
+}
+
+func TestGroup(t *testing.T) {
+	app := New()
+
+	// Create a group
+	group := app.Group("/api")
+	assert.NotNil(t, group, "Group() should return a non-nil RouterGroup")
+
+	// Register routes on the group
+	route := group.GET("/users", func(c *Context) {})
+	assert.NotNil(t, route, "Group.GET() should return a non-nil route")
+	assert.Equal(t, "/api/users", route.Path, "Group route path should be prefixed with group path")
+
+	// Test nested groups
+	v1 := group.Group("/v1")
+	assert.NotNil(t, v1, "Nested Group() should return a non-nil RouterGroup")
+
+	route = v1.POST("/posts", func(c *Context) {})
+	assert.NotNil(t, route, "Nested Group.POST() should return a non-nil route")
+	assert.Equal(t, "/api/v1/posts", route.Path, "Nested group route path should have all prefixes")
+}
+
+func TestMiddleware(t *testing.T) {
+	app := New()
+
+	// Register global middleware
+	middlewareExecuted := false
+	app.Use(func(c *Context) {
+		middlewareExecuted = true
+		c.Next()
+	})
+
+	// Register a route
+	app.GET("/middleware-test", func(c *Context) {})
+
+	// Access the internal gonoleks struct to verify middleware was registered
+	appImpl := app.(*gonoleks)
+	assert.Equal(t, 1, len(appImpl.middlewares), "Global middleware should be registered")
+
+	// Setup the router to ensure middleware is properly registered with routes
+	appImpl.setupRouter()
+
+	// Simulate a request to trigger the middleware
+	if appImpl.router != nil {
+		// Use fasthttp to create a fake request context
+		reqCtx := &fasthttp.RequestCtx{}
+		reqCtx.Request.SetRequestURI("/middleware-test")
+		reqCtx.Request.Header.SetMethod("GET")
+		appImpl.router.Handler(reqCtx)
+	}
+
+	// Now check if the middleware was executed
+	assert.True(t, middlewareExecuted, "Middleware should be executed on request")
+}
+
+func TestCaseInsensitiveRouting(t *testing.T) {
+	settings := &Settings{
+		CaseInSensitive: true,
+	}
+	app := New(settings)
+
+	// Register a route with mixed case
+	route := app.GET("/UsEr/PrOfIlE", func(c *Context) {})
+	assert.Equal(t, "/user/profile", route.Path, "Path should be converted to lowercase with case-insensitive routing")
+
+	// Test group with case-insensitive routing
+	group := app.Group("/ApI")
+	assert.NotNil(t, group, "Group() should return a non-nil RouterGroup")
+
+	groupRoute := group.GET("/UsErS", func(c *Context) {})
+	assert.Equal(t, "/api/users", groupRoute.Path, "Group path should be converted to lowercase with case-insensitive routing")
+}
+
+func TestStaticFileServing(t *testing.T) {
+	app := New()
+
+	// Create a temporary file for testing
+	tmpFile, err := os.CreateTemp("", "gonoleks-test-*.txt")
+	require.NoError(t, err, "Failed to create temporary file")
+	defer os.Remove(tmpFile.Name())
+
+	// Write some content to the file
+	content := "Hello, World!"
+	_, err = tmpFile.WriteString(content)
+	require.NoError(t, err, "Failed to write to temporary file")
+	tmpFile.Close()
+
+	// Register the file
+	app.StaticFile("/test-file", tmpFile.Name())
+
+	// Access the internal gonoleks struct to verify route was registered
+	appImpl := app.(*gonoleks)
+	found := false
+	for _, route := range appImpl.registeredRoutes {
+		if route.Path == "/test-file" && route.Method == MethodGet {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "StaticFile should register a GET route")
+}
+
+func TestRunAndShutdown(t *testing.T) {
+	// Skip in CI environments or when running short tests
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	app := New(&Settings{
+		DisableStartupMessage: true, // Suppress log output during tests
+	})
+
+	// Find an available port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err, "Failed to find available port")
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+
+	// Register a test route
+	app.GET("/ping", func(c *Context) {
+		c.String(StatusOK, "pong")
+	})
+
+	// Start the server in a goroutine
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- app.Run(fmt.Sprintf(":%d", port))
+	}()
+
+	// Give the server time to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Make a request to the server
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/ping", port))
+	if err == nil {
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		assert.Equal(t, StatusOK, resp.StatusCode, "Server should respond with 200 OK")
+		assert.Equal(t, "pong", string(body), "Server should respond with 'pong'")
+	}
+
+	// Shutdown the server
+	err = app.Shutdown()
+	assert.NoError(t, err, "Shutdown should not return an error")
+
+	// Wait for the server to exit
+	select {
+	case err := <-serverErr:
+		// Server exited with an error
+		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+			assert.NoError(t, err, "Server should not return an error on shutdown")
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("Server did not shut down within timeout")
+	}
+}
+
+func TestHTMLRendering(t *testing.T) {
+	app := New()
+
+	// Create a temporary template file
+	tmpFile, err := os.CreateTemp("", "gonoleks-template-*.html")
+	require.NoError(t, err, "Failed to create temporary template file")
+	defer os.Remove(tmpFile.Name())
+
+	// Write a simple template
+	templateContent := "<h1>Hello, {{.Name}}!</h1>"
+	_, err = tmpFile.WriteString(templateContent)
+	require.NoError(t, err, "Failed to write to temporary template file")
+	tmpFile.Close()
+
+	// Load the template
+	err = app.LoadHTMLFiles(tmpFile.Name())
+	assert.NoError(t, err, "LoadHTMLFiles should not return an error")
+
+	// Access the internal gonoleks struct to verify HTML renderer was created
+	appImpl := app.(*gonoleks)
+	assert.NotNil(t, appImpl.htmlRender, "HTML renderer should be created")
+}
+
+func TestDefaultSettings(t *testing.T) {
+	app := New()
+	appImpl := app.(*gonoleks)
+
+	// Verify default settings
+	assert.Equal(t, defaultCacheSize, appImpl.settings.CacheSize, "Default CacheSize should be applied")
+	assert.Equal(t, defaultMaxRequestBodySize, appImpl.settings.MaxRequestBodySize, "Default MaxRequestBodySize should be applied")
+	assert.Equal(t, defaultMaxRouteParams, appImpl.settings.MaxRouteParams, "Default MaxRouteParams should be applied")
+	assert.Equal(t, defaultMaxRequestURLLength, appImpl.settings.MaxRequestURLLength, "Default MaxRequestURLLength should be applied")
+	assert.Equal(t, defaultConcurrency, appImpl.settings.Concurrency, "Default Concurrency should be applied")
+	assert.Equal(t, defaultReadBufferSize, appImpl.settings.ReadBufferSize, "Default ReadBufferSize should be applied")
+}
+
+func TestHandleMethod(t *testing.T) {
+	app := New()
+
+	// Register a route with a custom method
+	customMethod := "CUSTOM"
+	route := app.Handle(customMethod, "/custom", func(c *Context) {})
+
+	assert.NotNil(t, route, "Handle() should return a non-nil route")
+	assert.Equal(t, "/custom", route.Path, "Route path should match")
+	assert.Equal(t, customMethod, route.Method, "Route method should match custom method")
+}
+
+func TestNotFound(t *testing.T) {
+	app := New()
+
+	// Register a custom NotFound handler
+	app.NotFound(func(c *Context) {
+		// Custom not found handler
+	})
+
+	// Access the internal router to verify NotFound handler was registered
+	appImpl := app.(*gonoleks)
+	assert.NotNil(t, appImpl.router.notFound, "NotFound handler should be registered")
+	assert.Equal(t, 1, len(appImpl.router.notFound), "NotFound should register exactly one handler")
+}
