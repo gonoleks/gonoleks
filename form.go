@@ -52,7 +52,7 @@ func (d *formDecoderType) getCachedFields(t reflect.Type) []cachedField {
 	if v, ok := d.fieldCache.Load(t); ok {
 		return v.([]cachedField)
 	}
-	
+
 	fields := make([]cachedField, 0, t.NumField())
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -71,7 +71,7 @@ func (d *formDecoderType) getCachedFields(t reflect.Type) []cachedField {
 			canSet:    canSet,
 		})
 	}
-	
+
 	// Store the fields in the cache before returning
 	d.fieldCache.Store(t, fields)
 	return fields
@@ -114,7 +114,7 @@ func (d *formDecoderType) Decode(dst any, src url.Values) error {
 			}
 			continue
 		}
-		
+
 		// Handle non-anonymous struct fields
 		if fieldVal.Kind() == reflect.Struct {
 			if err := d.Decode(fieldVal.Addr().Interface(), src); err != nil {
@@ -122,7 +122,7 @@ func (d *formDecoderType) Decode(dst any, src url.Values) error {
 			}
 			continue
 		}
-		
+
 		for _, n := range f.names {
 			if values, ok := src[n]; ok && len(values) > 0 {
 				if err := setFieldValue(fieldVal, values); err != nil {

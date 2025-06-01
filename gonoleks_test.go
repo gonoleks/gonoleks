@@ -222,13 +222,19 @@ func TestStaticFileServing(t *testing.T) {
 	// Create a temporary file for testing
 	tmpFile, err := os.CreateTemp("", "gonoleks-test-*.txt")
 	require.NoError(t, err, "Failed to create temporary file")
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		if removeErr := os.Remove(tmpFile.Name()); removeErr != nil {
+			t.Logf("Failed to remove temporary file: %v", err)
+		}
+	}()
 
 	// Write some content to the file
 	content := "Hello, World!"
 	_, err = tmpFile.WriteString(content)
 	require.NoError(t, err, "Failed to write to temporary file")
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		t.Logf("Failed to close temporary file: %v", err)
+	}
 
 	// Register the file
 	app.StaticFile("/test-file", tmpFile.Name())
@@ -259,7 +265,9 @@ func TestRunAndShutdown(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err, "Failed to find available port")
 	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
+	if closeErr := listener.Close(); closeErr != nil {
+		t.Logf("Failed to close listener: %v", err)
+	}
 
 	// Register a test route
 	app.GET("/ping", func(c *Context) {
@@ -278,7 +286,11 @@ func TestRunAndShutdown(t *testing.T) {
 	// Make a request to the server
 	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/ping", port))
 	if err == nil {
-		defer resp.Body.Close()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				t.Logf("Failed to close response body: %v", err)
+			}
+		}()
 		body, _ := io.ReadAll(resp.Body)
 		assert.Equal(t, StatusOK, resp.StatusCode, "Server should respond with 200 OK")
 		assert.Equal(t, "pong", string(body), "Server should respond with 'pong'")
@@ -306,13 +318,19 @@ func TestHTMLRendering(t *testing.T) {
 	// Create a temporary template file
 	tmpFile, err := os.CreateTemp("", "gonoleks-template-*.html")
 	require.NoError(t, err, "Failed to create temporary template file")
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		if removeErr := os.Remove(tmpFile.Name()); removeErr != nil {
+			t.Logf("Failed to remove temporary template file: %v", err)
+		}
+	}()
 
 	// Write a simple template
 	templateContent := "<h1>Hello, {{.Name}}!</h1>"
 	_, err = tmpFile.WriteString(templateContent)
 	require.NoError(t, err, "Failed to write to temporary template file")
-	tmpFile.Close()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Logf("Failed to close temporary template file: %v", err)
+	}
 
 	// Load the template
 	err = app.LoadHTMLFiles(tmpFile.Name())

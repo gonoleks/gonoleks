@@ -10,7 +10,7 @@ import (
 
 const (
 	globalIpv4Addr = "0.0.0.0" // Default binding address for all network interfaces
-	defaultPort = ":8080"      // Default port for the server
+	defaultPort    = ":8080"   // Default port for the server
 )
 
 // H is a shortcut for map[string]any
@@ -21,21 +21,21 @@ type H map[string]any
 // Returns a properly formatted address string with the global IPv4 address
 func resolveAddress(portStr string) string {
 	if portStr == "" {
-		log.Warnf(ErrEmptyPortFormat.Error(), defaultPort)
+		log.Warnf(ErrEmptyPortFormat, defaultPort)
 		return globalIpv4Addr + defaultPort
 	}
-	
+
 	if strings.HasPrefix(portStr, ":") {
 		portNum, err := strconv.Atoi(portStr[1:])
 		if err != nil || portNum < 1 || portNum > 65535 {
-			log.With("port", portStr).Warnf(ErrInvalidPortFormat.Error(), defaultPort)
+			log.With("port", portStr).Warnf(ErrInvalidPortFormat, defaultPort)
 			return globalIpv4Addr + defaultPort
 		}
 		return globalIpv4Addr + portStr
 	}
-	
+
 	// Invalid format
-	log.With("port", portStr).Warnf(ErrInvalidPortFormat.Error(), defaultPort)
+	log.With("port", portStr).Warnf(ErrInvalidPortFormat, defaultPort)
 	return globalIpv4Addr + defaultPort
 }
 

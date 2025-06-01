@@ -3,11 +3,20 @@ package gonoleks
 import "errors"
 
 // Logging errors
+const (
+	ErrEmptyPortFormat              = "Empty port format, using default port %s"
+	ErrInvalidPortFormat            = "Invalid port format, using default port %s"
+	ErrCacheCreationFailed          = "Cache creation failed"
+	ErrRecoveredFromError           = "Recovered from error"
+	ErrFormParsingFailed            = "Form parsing failed"
+	ErrMultipartFormParsingFailed   = "Multipart form parsing failed"
+	ErrFormBindingFailed            = "Form binding failed"
+	ErrRequestAbortedWithError      = "Request aborted with error"
+	ErrUnsupportedContentType       = "Unsupported Content-Type"
+)
+
+// Marshaling errors
 var (
-	ErrEmptyPortFormat              = errors.New("Empty port format, using default port %s")
-	ErrInvalidPortFormat            = errors.New("Invalid port format, using default port %s")
-	ErrCacheCreationFailed          = errors.New("Cache creation failed")
-	ErrRecoveredFromError           = errors.New("Recovered from error")
 	ErrJSONMarshalingFailed         = errors.New("JSON marshaling failed")
 	ErrIndentedJSONMarshalingFailed = errors.New("IndentedJSON marshaling failed")
 	ErrAsciiJSONMarshalingFailed    = errors.New("AsciiJSON marshaling failed")
@@ -20,12 +29,6 @@ var (
 	ErrCBORMarshalingFailed         = errors.New("CBOR marshaling failed")
 	ErrProtoBufMarshalingFailed     = errors.New("ProtoBuf marshaling failed")
 	ErrMessagePackMarshalingFailed  = errors.New("MessagePack marshaling failed")
-	ErrFormParsingFailed            = errors.New("Form parsing failed")
-	ErrMultipartFormParsingFailed   = errors.New("Multipart form parsing failed")
-	ErrFormBindingFailed            = errors.New("Form binding failed")
-	ErrFileNotFound                 = errors.New("File Not Found")
-	ErrRequestAbortedWithError      = errors.New("Request aborted with error")
-	ErrUnsupportedContentType       = errors.New("Unsupported Content-Type")
 )
 
 // Rendering errors
@@ -58,4 +61,5 @@ var (
 	ErrTemplateEngineNotSet        = errors.New("template engine not set")
 	ErrTemplateNotFound            = errors.New("template not found")
 	ErrDataMustBeMapStringAny      = errors.New("data must be a map[string]any")
+	ErrFileNotFound                = errors.New("file Not Found")
 )

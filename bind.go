@@ -53,7 +53,6 @@ var (
 	Header        = headerBinding{}
 	Uri           = uriBinding{}
 	Plain         = plainBinding{}
-	defaultMemory = int64(32 << 20) // 32 MB
 )
 
 // EnableDecoderUseNumber makes JSON decoder treat numbers as Number type
@@ -227,7 +226,7 @@ func (uriBinding) Name() string {
 
 // BindUri binds URI parameters to the provided struct
 func (uriBinding) BindUri(params map[string]string, obj any) error {
-	if params == nil || len(params) == 0 {
+	if len(params) == 0 {
 		return ErrInvalidUriParams
 	}
 

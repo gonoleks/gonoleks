@@ -243,11 +243,12 @@ func (n *node) matchRoute(path string, ctx *Context) handlersChain {
 
 			// If no compound match, try regular parameter match
 			if !matched && currentNode.param != nil {
-				if currentNode.param.nType == param {
+				switch currentNode.param.nType {
+				case param:
 					// Parameter match
 					ctx.paramValues[currentNode.param.path[1:]] = pathSegment
 					currentNode = currentNode.param
-				} else if currentNode.param.nType == catchAll {
+				case catchAll:
 					// Catch-all match - capture the rest of the path
 					paramName := "*"
 					if len(currentNode.param.path) > 1 {
@@ -261,6 +262,8 @@ func (n *node) matchRoute(path string, ctx *Context) handlersChain {
 						ctx.paramValues[paramName] = pathSegment
 					}
 					return currentNode.param.handlers
+				default:
+					return nil
 				}
 			} else if !matched {
 				// No match found

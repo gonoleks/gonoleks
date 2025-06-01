@@ -75,7 +75,6 @@ type gonoleks struct {
 	router           *router
 	registeredRoutes []*Route
 	address          string
-	port             int
 	middlewares      handlersChain
 	settings         *Settings
 	htmlRender       HTMLRender
@@ -466,7 +465,7 @@ func (g *gonoleks) Static(path, root string) {
 		}
 
 		// Pass to custom not found handlers if available
-		if g.router.notFound != nil && len(g.router.notFound) > 0 {
+		if len(g.router.notFound) > 0 {
 			g.router.notFound[0](c)
 			return
 		}

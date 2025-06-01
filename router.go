@@ -229,7 +229,7 @@ func (r *router) handleCache(method, path string, context *Context) bool {
 	if keyLen > 255 {
 		return false // Skip caching for very long paths
 	}
-	
+
 	copy(keyBuf[:len(method)], method)
 	keyBuf[len(method)] = ':'
 	copy(keyBuf[len(method)+1:], path)
@@ -238,7 +238,7 @@ func (r *router) handleCache(method, path string, context *Context) bool {
 	if value, ok := r.cache.Get(cacheKey); ok {
 		cacheResult := value.(*matchResult)
 		context.handlers = cacheResult.handlers
-		
+
 		if len(cacheResult.params) > 0 {
 			for k, v := range cacheResult.params {
 				context.paramValues[k] = v

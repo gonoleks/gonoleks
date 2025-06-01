@@ -154,7 +154,7 @@ func logHTTPTransaction(ctx *fasthttp.RequestCtx, latency time.Duration) {
 	// Add request headers if configured
 	if settings != nil && settings.LogReportRequestHeaders {
 		// Create a map for headers
-		headers := make(map[string]string, 10)  // Provide initial capacity
+		headers := make(map[string]string, 10) // Provide initial capacity
 		ctx.Request.Header.VisitAll(func(key, value []byte) {
 			headers[getString(key)] = getString(value)
 		})

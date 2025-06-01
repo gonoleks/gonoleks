@@ -788,7 +788,7 @@ func (c *Context) Cookie(name string) (string, error) {
 func (c *Context) HTML(code int, name string, obj any) {
 	k, ok := c.requestCtx.UserValue("gonoleksApp").(*gonoleks)
 	if !ok || k.htmlRender == nil {
-		c.AbortWithError(StatusInternalServerError, ErrTemplateEngineNotSet)
+		_ = c.AbortWithError(StatusInternalServerError, ErrTemplateEngineNotSet)
 		return
 	}
 
@@ -801,7 +801,7 @@ func (c *Context) HTML(code int, name string, obj any) {
 
 	// Render the template
 	if err := render.Render(c.requestCtx); err != nil {
-		c.AbortWithError(StatusInternalServerError, errors.Join(ErrHTMLTemplateRender, err))
+		_ = c.AbortWithError(StatusInternalServerError, errors.Join(ErrHTMLTemplateRender, err))
 	}
 }
 
@@ -1080,7 +1080,7 @@ func (c *Context) File(filePath string) {
 func (c *Context) FileAttachment(filePath, fileName string) {
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		c.AbortWithError(StatusNotFound, ErrFileNotFound)
+		_ = c.AbortWithError(StatusNotFound, ErrFileNotFound)
 		return
 	}
 

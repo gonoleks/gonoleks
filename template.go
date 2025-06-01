@@ -25,6 +25,7 @@ type TemplateEngine struct {
 	lock      sync.RWMutex
 	delims    [2]string
 	dir       string
+	funcMap   any
 }
 
 // NewTemplateEngine creates a new template engine instance
@@ -103,7 +104,7 @@ func (e *TemplateEngine) loadFile(name, path string) error {
 func (e *TemplateEngine) SetTemplate(tmpl any) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
-	
+
 	// Handle different template types
 	switch t := tmpl.(type) {
 	case string:
@@ -128,12 +129,7 @@ func (e *TemplateEngine) SetTemplate(tmpl any) {
 func (e *TemplateEngine) SetFuncMap(funcMap any) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
-	
-	// Store function map for later use
-	// TODO: Integrate with template parser
-	if funcMap != nil {
-		// Currently just stores for API compatibility
-	}
+	e.funcMap = funcMap
 }
 
 // SetDelims sets the delimiters used for template parsing
