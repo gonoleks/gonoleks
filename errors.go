@@ -26,9 +26,7 @@ var (
 	ErrXMLMarshalingFailed          = errors.New("XML marshaling failed")
 	ErrYAMLMarshalingFailed         = errors.New("YAML marshaling failed")
 	ErrTOMLMarshalingFailed         = errors.New("TOML marshaling failed")
-	ErrCBORMarshalingFailed         = errors.New("CBOR marshaling failed")
 	ErrProtoBufMarshalingFailed     = errors.New("ProtoBuf marshaling failed")
-	ErrMessagePackMarshalingFailed  = errors.New("MessagePack marshaling failed")
 )
 
 // Rendering errors
@@ -41,9 +39,7 @@ var (
 	ErrXMLMarshal                  = errors.New("failed to marshal XML")
 	ErrYAMLMarshal                 = errors.New("failed to marshal YAML")
 	ErrTOMLMarshal                 = errors.New("failed to marshal TOML")
-	ErrCBORMarshal                 = errors.New("failed to marshal CBOR")
 	ErrProtoBufMarshal             = errors.New("failed to marshal ProtoBuf")
-	ErrMessagePackMarshal          = errors.New("failed to marshal MessagePack")
 	ErrHTMLTemplateRender          = errors.New("failed to render HTML template")
 	ErrFormBind                    = errors.New("failed to bind form data")
 	ErrContentType                 = errors.New("content type is not supported")

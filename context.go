@@ -12,10 +12,8 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/charmbracelet/log"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/valyala/fasthttp"
-	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
 )
@@ -958,22 +956,6 @@ func (c *Context) TOML(code int, obj any) error {
 	return nil
 }
 
-// CBOR serializes the given struct as CBOR into the response body
-// It automatically sets the Content-Type header to "application/cbor"
-func (c *Context) CBOR(code int, obj any) error {
-	c.requestCtx.Response.SetStatusCode(code)
-	c.requestCtx.Response.Header.SetContentType(MIMEApplicationCBOR)
-
-	cborBytes, err := cbor.Marshal(obj)
-	if err != nil {
-		log.Error(ErrCBORMarshalingFailed, "error", err)
-		return errors.Join(ErrCBORMarshal, err)
-	}
-
-	c.requestCtx.Response.SetBodyRaw(cborBytes)
-	return nil
-}
-
 // ProtoBuf serializes the provided data to Protocol Buffer format and sets it as the response body
 // It automatically sets the Content-Type header to "application/x-protobuf"
 // The data parameter must implement the proto.Message interface
@@ -993,22 +975,6 @@ func (c *Context) ProtoBuf(code int, obj any) error {
 	if err != nil {
 		log.Error(ErrProtoBufMarshalingFailed, "error", err)
 		return errors.Join(ErrProtoBufMarshal, err)
-	}
-
-	c.requestCtx.Response.SetBodyRaw(raw)
-	return nil
-}
-
-// MessagePack serializes the provided data to MessagePack format and sets it as the response body
-// It automatically sets the Content-Type header to "application/msgpack"
-func (c *Context) MessagePack(code int, obj any) error {
-	c.requestCtx.Response.SetStatusCode(code)
-	c.requestCtx.Response.Header.SetContentType(MIMEApplicationMsgPack)
-
-	raw, err := msgpack.Marshal(obj)
-	if err != nil {
-		log.Error(ErrMessagePackMarshalingFailed, "error", err)
-		return errors.Join(ErrMessagePackMarshal, err)
 	}
 
 	c.requestCtx.Response.SetBodyRaw(raw)
