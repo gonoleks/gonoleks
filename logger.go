@@ -94,9 +94,6 @@ func setLoggerSettings(settings *Settings) {
 	log.SetStyles(styles)
 	log.SetOutput(os.Stderr)
 
-	// Configure timestamp reporting based on settings
-	log.SetReportTimestamp(settings.LogReportTimestamp)
-
 	// Apply custom time format if provided, otherwise use default format
 	if settings.LogTimeFormat == "" {
 		settings.LogTimeFormat = "2006/01/02 15:04:05"

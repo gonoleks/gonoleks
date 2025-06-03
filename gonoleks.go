@@ -185,9 +185,6 @@ type Settings struct {
 	// Disables HTTP transaction logging
 	DisableLogging bool // Default: false
 
-	// Controls whether timestamps are included in logs
-	LogReportTimestamp bool // Default: true
-
 	// Format string for log timestamps
 	LogTimeFormat string // Default: "2006/01/02 15:04:05"
 
