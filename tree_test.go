@@ -336,7 +336,7 @@ func TestMatchCompoundPattern(t *testing.T) {
 
 			match := matchCompoundPattern(tc.pattern, tc.segment, ctx)
 			assert.Equal(t, tc.expectedMatch, match, "Match result should be %v for pattern %s and segment %s", tc.expectedMatch, tc.pattern, tc.segment)
-			
+
 			if tc.expectedMatch {
 				for k, v := range tc.expectedParams {
 					assert.Equal(t, v, ctx.paramValues[k], "Parameter %s should have value %s", k, v)

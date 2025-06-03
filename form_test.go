@@ -233,5 +233,5 @@ func TestGetCachedFields(t *testing.T) {
 	// Test caching
 	cachedFields := decoder.getCachedFields(reflect.TypeOf(TestStruct{}))
 	assert.Equal(t, fields, cachedFields)
-	//assert.Same(t, fields, cachedFields) // Should return the same slice from cache
+	// assert.Same(t, fields, cachedFields) // Should return the same slice from cache
 }

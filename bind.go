@@ -44,15 +44,15 @@ type (
 
 // Binding instances
 var (
-	JSON          = jsonBinding{}
-	XML           = xmlBinding{}
-	Form          = formBinding{}
-	Query         = queryBinding{}
-	YAML          = yamlBinding{}
-	TOML          = tomlBinding{}
-	Header        = headerBinding{}
-	Uri           = uriBinding{}
-	Plain         = plainBinding{}
+	JSON   = jsonBinding{}
+	XML    = xmlBinding{}
+	Form   = formBinding{}
+	Query  = queryBinding{}
+	YAML   = yamlBinding{}
+	TOML   = tomlBinding{}
+	Header = headerBinding{}
+	Uri    = uriBinding{}
+	Plain  = plainBinding{}
 )
 
 // EnableDecoderUseNumber makes JSON decoder treat numbers as Number type

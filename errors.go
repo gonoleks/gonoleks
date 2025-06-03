@@ -4,15 +4,15 @@ import "errors"
 
 // Logging errors
 const (
-	ErrEmptyPortFormat              = "Empty port format, using default port %s"
-	ErrInvalidPortFormat            = "Invalid port format, using default port %s"
-	ErrCacheCreationFailed          = "Cache creation failed"
-	ErrRecoveredFromError           = "Recovered from error"
-	ErrFormParsingFailed            = "Form parsing failed"
-	ErrMultipartFormParsingFailed   = "Multipart form parsing failed"
-	ErrFormBindingFailed            = "Form binding failed"
-	ErrRequestAbortedWithError      = "Request aborted with error"
-	ErrUnsupportedContentType       = "Unsupported Content-Type"
+	ErrEmptyPortFormat            = "Empty port format, using default port %s"
+	ErrInvalidPortFormat          = "Invalid port format, using default port %s"
+	ErrCacheCreationFailed        = "Cache creation failed"
+	ErrRecoveredFromError         = "Recovered from error"
+	ErrFormParsingFailed          = "Form parsing failed"
+	ErrMultipartFormParsingFailed = "Multipart form parsing failed"
+	ErrFormBindingFailed          = "Form binding failed"
+	ErrRequestAbortedWithError    = "Request aborted with error"
+	ErrUnsupportedContentType     = "Unsupported Content-Type"
 )
 
 // Marshaling errors

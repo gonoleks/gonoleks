@@ -9,15 +9,15 @@ import (
 
 func TestResolveAddress(t *testing.T) {
 	// Valid port with colon
-	assert.Equal(t, globalIpv4Addr + ":5678", resolveAddress(":5678"))
+	assert.Equal(t, globalIpv4Addr+":5678", resolveAddress(":5678"))
 	// Empty port string
-	assert.Equal(t, globalIpv4Addr + defaultPort, resolveAddress(""))
+	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress(""))
 	// Invalid port (non-numeric)
-	assert.Equal(t, globalIpv4Addr + defaultPort, resolveAddress(":abcd"))
+	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress(":abcd"))
 	// Invalid port (out of range)
-	assert.Equal(t, globalIpv4Addr + defaultPort, resolveAddress(":70000"))
+	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress(":70000"))
 	// Port without colon
-	assert.Equal(t, globalIpv4Addr + defaultPort, resolveAddress("5678"))
+	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress("5678"))
 }
 
 func TestGetBytes(t *testing.T) {
