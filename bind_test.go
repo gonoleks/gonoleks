@@ -311,9 +311,9 @@ func TestPlainBinding(t *testing.T) {
 	assert.Equal(t, ErrPlainBindPointer, err)
 }
 
-func TestDefault(t *testing.T) {
+func TestDefaultBind(t *testing.T) {
 	// Test GET method
-	binding := Default(MethodGet, MIMEApplicationJSON)
+	binding := DefaultBind(MethodGet, MIMEApplicationJSON)
 	assert.Equal(t, Query, binding)
 
 	// Test different content types
@@ -334,7 +334,7 @@ func TestDefault(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		binding := Default(tc.method, tc.contentType)
+		binding := DefaultBind(tc.method, tc.contentType)
 		assert.Equal(t, tc.expected, binding, "Content type: %s", tc.contentType)
 	}
 }

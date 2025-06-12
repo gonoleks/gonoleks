@@ -429,7 +429,7 @@ func (c *Context) Bind(obj any) error {
 	method := getString(c.requestCtx.Method())
 	contentType := getString(c.requestCtx.Request.Header.ContentType())
 
-	b := Default(method, contentType)
+	b := DefaultBind(method, contentType)
 
 	err := b.Bind(c.requestCtx, obj)
 	if err != nil {
@@ -568,7 +568,7 @@ func (c *Context) ShouldBind(obj any) error {
 	method := getString(c.requestCtx.Method())
 	contentType := getString(c.requestCtx.Request.Header.ContentType())
 
-	b := Default(method, contentType)
+	b := DefaultBind(method, contentType)
 
 	return b.Bind(c.requestCtx, obj)
 }

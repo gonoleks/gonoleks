@@ -263,8 +263,8 @@ func (plainBinding) BindBody(body []byte, obj any) error {
 	return ErrPlainBindPointer
 }
 
-// Default returns the appropriate binding based on the HTTP method and Content-Type header
-func Default(method string, contentType string) Binding {
+// DefaultBind returns the appropriate binding based on the HTTP method and Content-Type header
+func DefaultBind(method string, contentType string) Binding {
 	if method == MethodGet {
 		return Query
 	}
