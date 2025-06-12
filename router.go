@@ -245,7 +245,7 @@ func (r *router) handleCache(method, path string, context *Context) bool {
 			}
 		}
 
-		context.handlers[0](context)
+		context.Next()
 		return true
 	}
 
@@ -282,7 +282,7 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 		}
 
 		context.handlers = handlers
-		context.handlers[0](context)
+		context.Next()
 		return true
 	}
 

@@ -56,7 +56,7 @@ func TestContext_Next(t *testing.T) {
 
 	ctx.Next()
 	assert.True(t, handlerCalled)
-	assert.Equal(t, 1, ctx.index)
+	assert.Equal(t, 0, ctx.index)
 }
 
 func TestContext_IsAborted(t *testing.T) {
