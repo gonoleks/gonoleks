@@ -105,7 +105,7 @@ type Settings struct {
 	DisableCaching bool // Default: false
 
 	// Controls which HTTP methods are cached (comma-separated list)
-	CacheMethods string // Default: "GET,POST,HEAD,OPTIONS"
+	CacheMethods string // Default: "GET,HEAD"
 
 	// Maximum number of parameters to cache per route
 	// Routes with more parameters than this will not be cached
@@ -131,7 +131,7 @@ type Settings struct {
 
 	// Enables automatic recovery from panics during handler execution
 	// by responding with HTTP 500 and logging the error without stopping the service
-	AutoRecover bool // Default: false
+	AutoRecover bool // Default: true
 
 	// Maximum request body size
 	MaxRequestBodySize int // Default: 4 * 1024 * 1024
@@ -165,13 +165,13 @@ type Settings struct {
 	DisableHeaderNamesNormalizing bool // Default: true
 
 	// Maximum time allowed to read the full request including body
-	ReadTimeout time.Duration // Default: unlimited
+	ReadTimeout time.Duration // Default: 0
 
 	// Maximum duration before timing out writes of the response
-	WriteTimeout time.Duration // Default: unlimited
+	WriteTimeout time.Duration // Default: 0
 
 	// Maximum time to wait for the next request when keep-alive is enabled
-	IdleTimeout time.Duration // Default: unlimited
+	IdleTimeout time.Duration // Default: 0
 
 	// Enables TLS (HTTPS) support
 	TLSEnabled bool // Default: false
@@ -223,55 +223,65 @@ type Route struct {
 	Handlers handlersChain
 }
 
-// New creates a new instance of Gonoleks with the provided settings
-// If no settings are provided, default settings will be used
+// Default returns a new instance of Gonoleks with default settings
+func Default(settings ...*Settings) Gonoleks {
+	if len(settings) > 0 {
+		return createInstance(settings[0])
+	}
+
+	return createInstance(&Settings{
+		AutoRecover: true,
+	})
+}
+
+// New returns a new blank instance of Gonoleks without any middleware attached
 func New(settings ...*Settings) Gonoleks {
-	// Initialize with empty settings if none provided
-	k := &gonoleks{
+	if len(settings) > 0 {
+		return createInstance(settings[0])
+	}
+
+	return createInstance(&Settings{
+		AutoRecover:           false,
+		DisableStartupMessage: true,
+		DisableLogging:        true,
+	})
+}
+
+// createInstance creates a new instance of Gonoleks with provided settings
+func createInstance(settings *Settings) Gonoleks {
+	g := &gonoleks{
 		registeredRoutes: make([]*Route, 0),
 		middlewares:      make(handlersChain, 0),
-		settings:         &Settings{},
+		settings:         settings,
 	}
 
-	// Apply user settings if provided
-	if len(settings) > 0 {
-		k.settings = settings[0]
-	}
+	g.setDefaultSettings()
+	setLoggerSettings(g.settings)
 
-	k.setDefaultSettings()
-	setLoggerSettings(k.settings)
-
-	// Initialize LRU cache for route optimization
-	cacheSize := k.settings.CacheSize
-	if k.settings.DisableCaching {
+	cacheSize := g.settings.CacheSize
+	if g.settings.DisableCaching {
 		cacheSize = 1
 	}
 
-	var cache *lru.Cache[string, any]
-	var err error
-
-	// Try to create cache with requested size
-	cache, err = lru.New[string, any](cacheSize)
+	cache, err := lru.New[string, any](cacheSize)
 	if err != nil {
 		log.Error(ErrCacheCreationFailed, "error", err, "requestedSize", cacheSize)
-		// Fallback to a minimal cache size
 		cache, _ = lru.New[string, any](10)
 	}
 
-	// Initialize router with settings and cache
-	k.router = &router{
-		settings: k.settings,
+	g.router = &router{
+		settings: g.settings,
 		cache:    cache,
 		pool: sync.Pool{
 			New: func() any { return new(Context) },
 		},
 	}
 
-	k.httpServer = k.newHTTPServer()
-
-	return k
+	g.httpServer = g.newHTTPServer()
+	return g
 }
 
+// setDefaultSettings sets default values for settings
 func (g *gonoleks) setDefaultSettings() {
 	if g.settings.MaxProcs > 0 {
 		runtime.GOMAXPROCS(g.settings.MaxProcs)
@@ -285,7 +295,7 @@ func (g *gonoleks) setDefaultSettings() {
 	}
 
 	if g.settings.CacheMethods == "" {
-		g.settings.CacheMethods = "GET,POST,HEAD,OPTIONS,PUT,PATCH,DELETE"
+		g.settings.CacheMethods = "GET,HEAD"
 	}
 
 	if g.settings.MaxCachedParams <= 0 {

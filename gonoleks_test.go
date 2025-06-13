@@ -15,14 +15,25 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func TestNew(t *testing.T) {
+func TestDefault(t *testing.T) {
 	// Test with default settings
+	app := Default()
+	assert.NotNil(t, app, "Default() should return a non-nil instance")
+
+	// Access the internal gonoleks struct to verify default settings were applied
+	appImpl := app.(*gonoleks)
+	assert.Equal(t, "Gonoleks", appImpl.httpServer.Name, "ServerName setting should be applied")
+	assert.Equal(t, defaultConcurrency, appImpl.httpServer.Concurrency, "Concurrency setting should be applied")
+	assert.Equal(t, defaultReadBufferSize, appImpl.httpServer.ReadBufferSize, "ReadBufferSize setting should be applied")
+}
+
+func TestNew(t *testing.T) {
+	// Test with custom settings
 	app := New()
 	assert.NotNil(t, app, "New() should return a non-nil instance")
 
-	// Test with custom settings
 	customSettings := &Settings{
-		ServerName:      "GonoleksTest",
+		ServerName:      "Test",
 		MaxProcs:        4,
 		CacheSize:       2000,
 		Concurrency:     1024,
@@ -36,7 +47,7 @@ func TestNew(t *testing.T) {
 
 	// Access the internal gonoleks struct to verify settings were applied
 	appImpl := app.(*gonoleks)
-	assert.Equal(t, "GonoleksTest", appImpl.httpServer.Name, "ServerName setting should be applied")
+	assert.Equal(t, "Test", appImpl.httpServer.Name, "ServerName setting should be applied")
 	assert.Equal(t, 1024, appImpl.httpServer.Concurrency, "Concurrency setting should be applied")
 	assert.Equal(t, 8192, appImpl.httpServer.ReadBufferSize, "ReadBufferSize setting should be applied")
 }
@@ -342,7 +353,7 @@ func TestHTMLRendering(t *testing.T) {
 }
 
 func TestDefaultSettings(t *testing.T) {
-	app := New()
+	app := Default()
 	appImpl := app.(*gonoleks)
 
 	// Verify default settings
