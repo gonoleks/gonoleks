@@ -38,6 +38,11 @@ func (r *RouterGroup) Handle(httpMethod, path string, handlers ...handlerFunc) *
 	if r.app.settings.CaseInSensitive {
 		path = strings.ToLower(path)
 	}
+	// Only register a default handler for the group root if there are handlers to register
+	defaultHandlers := append(r.app.middlewares, r.middlewares...)
+	if path != "/" && path != "" && !r.app.router.routeExists(httpMethod, r.prefix) && len(defaultHandlers) > 0 {
+		r.app.router.handle(httpMethod, r.prefix, defaultHandlers)
+	}
 	// Combine global middleware + group middleware + route handlers
 	totalHandlers := len(r.app.middlewares) + len(r.middlewares) + len(handlers)
 	finalHandlers := make(handlersChain, totalHandlers)
