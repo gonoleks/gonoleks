@@ -1,10 +1,10 @@
 <div align="center">
 
-<a href="https://github.com/gonoleks/gonoleks">
-  <img width="450px" alt="Gonoleks" src="assets/gonoleks-logo.svg">
-</a>
-
 <a name="readme-top"></a>
+
+<a href="https://github.com/gonoleks/gonoleks">
+  <img width="450px" alt="Gonoleks" src="assets/gonoleks-logo.png">
+</a>
 
 # Gonoleks
 
@@ -28,7 +28,7 @@
 ## ⚙️ Installation
 
 > [!IMPORTANT]
-> Gonoleks requires **Go version `1.23` or higher**.
+> Gonoleks requires **Go version `1.23` or higher** to run.
 
 Install Gonoleks using `go get`:
 
@@ -44,21 +44,21 @@ A simple "Hello, World!" web server:
 package main
 
 import (
-	"github.com/gonoleks/gonoleks"
+    "github.com/gonoleks/gonoleks"
 )
 
 func main() {
-	// Initialize a default Gonoleks app
-	app := gonoleks.Default()
+    // Initialize a default Gonoleks app
+    app := gonoleks.Default()
 
-	// Define a route for the GET method on the root path '/'
-	app.GET("/", func(c *gonoleks.Context) {
-		// Send a string response with status code 200
-		c.String(200, "Hello, World!")
-	})
+    // Define a route for the GET method on the root path '/'
+    app.GET("/", func(c *gonoleks.Context) {
+        // Send a string response with status code 200
+        c.String(200, "Hello, World!")
+    })
 
-	// Start the server on port 3000
-	app.Run(":3000")
+    // Start the server on port 3000
+    app.Run(":3000")
 }
 ```
 
@@ -82,43 +82,43 @@ Gonoleks provides a powerful routing system with support for various parameter t
 package main
 
 import (
-	"github.com/gonoleks/gonoleks"
+    "github.com/gonoleks/gonoleks"
 )
 
 func main() {
-	app := gonoleks.Default()
+    app := gonoleks.Default()
 
-	// GET /api/anything
-	app.GET("/api/*", func(c *gonoleks.Context) {
-		c.String(200, "✋🏻 %s", c.Param("*"))
-		// => ✋🏻 anything
-	})
+    // GET /api/anything
+    app.GET("/api/*", func(c *gonoleks.Context) {
+        c.String(200, "✋🏻 %s", c.Param("*"))
+        // => ✋🏻 anything
+    })
 
-	// GET /missions/earth-mars
-	app.GET("/missions/:from-:to", func(c *gonoleks.Context) {
-		c.String(200, "🚀 From: %s, To: %s", c.Param("from"), c.Param("to"))
-		// => 🚀 From: earth, To: mars
-	})
+    // GET /missions/earth-mars
+    app.GET("/missions/:from-:to", func(c *gonoleks.Context) {
+        c.String(200, "🚀 From: %s, To: %s", c.Param("from"), c.Param("to"))
+        // => 🚀 From: earth, To: mars
+    })
 
-	// GET /readme.md
-	app.GET("/:file.:ext", func(c *gonoleks.Context) {
-		c.String(200, "📄 %s.%s", c.Param("file"), c.Param("ext"))
-		// => 📄 readme.md
-	})
+    // GET /readme.md
+    app.GET("/:file.:ext", func(c *gonoleks.Context) {
+        c.String(200, "📄 %s.%s", c.Param("file"), c.Param("ext"))
+        // => 📄 readme.md
+    })
 
-	// GET /john/33
-	app.GET("/:name/:age", func(c *gonoleks.Context) {
-		c.String(200, "👨🏻 %s is %s years old", c.Param("name"), c.Param("age"))
-		// => 👨🏻 john is 33 years old
-	})
+    // GET /john/33
+    app.GET("/:name/:age", func(c *gonoleks.Context) {
+        c.String(200, "👨🏻 %s is %s years old", c.Param("name"), c.Param("age"))
+        // => 👨🏻 john is 33 years old
+    })
 
-	// GET /john
-	app.GET("/:name", func(c *gonoleks.Context) {
-		c.String(200, "👋🏻 Hello, %s", c.Param("name"))
-		// => 👋🏻 Hello john
-	})
+    // GET /john
+    app.GET("/:name", func(c *gonoleks.Context) {
+        c.String(200, "👋🏻 Hello, %s", c.Param("name"))
+        // => 👋🏻 Hello john
+    })
 
-	app.Run(":3000")
+    app.Run(":3000")
 }
 ```
 
@@ -136,44 +136,44 @@ Organize your routes with logical grouping:
 package main
 
 import (
-	"github.com/gonoleks/gonoleks"
+    "github.com/gonoleks/gonoleks"
 )
 
 func main() {
-	app := gonoleks.Default()
+    app := gonoleks.Default()
 
-	// Create a group for API endpoints
-	api := app.Group("/api")
+    // Create a group for API endpoints
+    api := app.Group("/api")
 
-	// Create a nested group for user-related endpoints
-	users := api.Group("/users")
+    // Create a nested group for user-related endpoints
+    users := api.Group("/users")
 
-	// GET /api/users
-	users.GET("/", func(c *gonoleks.Context) {
-		c.JSON(200, gonoleks.H{
-			"users": []string{"James", "Maria", "Angela", "Eddie", "Laura"},
-		})
-	})
+    // GET /api/users
+    users.GET("/", func(c *gonoleks.Context) {
+        c.JSON(200, gonoleks.H{
+            "users": []string{"James", "Maria", "Angela", "Eddie", "Laura"},
+        })
+    })
 
-	// GET /api/users/:id
-	users.GET("/:id", func(c *gonoleks.Context) {
-		c.JSON(200, gonoleks.H{
-			"id":   c.Param("id"),
-			"name": "User #" + c.Param("id"),
-		})
-	})
+    // GET /api/users/:id
+    users.GET("/:id", func(c *gonoleks.Context) {
+        c.JSON(200, gonoleks.H{
+            "id":   c.Param("id"),
+            "name": "User #" + c.Param("id"),
+        })
+    })
 
-	// Create another group for location-related endpoints
-	locations := api.Group("/locations")
+    // Create another group for location-related endpoints
+    locations := api.Group("/locations")
 
-	// GET /api/locations
-	locations.GET("/", func(c *gonoleks.Context) {
-		c.JSON(200, gonoleks.H{
-			"locations": []string{"Toluca Lake", "Brookhaven Hospital", "Lakeview Hotel"},
-		})
-	})
+    // GET /api/locations
+    locations.GET("/", func(c *gonoleks.Context) {
+        c.JSON(200, gonoleks.H{
+            "locations": []string{"Toluca Lake", "Brookhaven Hospital", "Lakeview Hotel"},
+        })
+    })
 
-	app.Run(":3000")
+    app.Run(":3000")
 }
 ```
 
@@ -191,30 +191,30 @@ Serving static files is straightforward with Gonoleks:
 package main
 
 import (
-	"github.com/gonoleks/gonoleks"
+    "github.com/gonoleks/gonoleks"
 )
 
 func main() {
-	app := gonoleks.Default()
+    app := gonoleks.Default()
 
-	// Serve static files from the "./assets" directory
-	app.Static("/*", "./assets")
-	// => http://localhost:3000/js/script.js
-	// => http://localhost:3000/css/style.css
+    // Serve static files from the "./assets" directory
+    app.Static("/*", "./assets")
+    // => http://localhost:3000/js/script.js
+    // => http://localhost:3000/css/style.css
 
-	app.Static("/static", "./assets")
-	// => http://localhost:3000/static/js/script.js
-	// => http://localhost:3000/static/css/style.css
+    app.Static("/static", "./assets")
+    // => http://localhost:3000/static/js/script.js
+    // => http://localhost:3000/static/css/style.css
 
-	// Serve a single file for any unmatched routes
-	app.Static("*", "./assets/index.html")
-	// => http://localhost:3000/any/path/shows/index.html
+    // Serve a single file for any unmatched routes
+    app.Static("*", "./assets/index.html")
+    // => http://localhost:3000/any/path/shows/index.html
 
-	// Serve a specific file
-	app.StaticFile("/favicon.ico", "./assets/favicon.ico")
-	// => http://localhost:3000/favicon.ico
+    // Serve a specific file
+    app.StaticFile("/favicon.ico", "./assets/favicon.ico")
+    // => http://localhost:3000/favicon.ico
 
-	app.Run(":3000")
+    app.Run(":3000")
 }
 ```
 
@@ -232,37 +232,37 @@ Middleware functions allow you to process requests before they reach their final
 package main
 
 import (
-	"fmt"
+    "fmt"
 
-	"github.com/gonoleks/gonoleks"
+    "github.com/gonoleks/gonoleks"
 )
 
 func main() {
-	// Initialize a new Gonoleks app
-	app := gonoleks.New()
+    // Initialize a new Gonoleks app
+    app := gonoleks.New()
 
-	// Create track group first
-	track := app.Group("/track")
+    // Create track group first
+    track := app.Group("/track")
 
-	// Add middleware to the app after creating the group
-	app.Use(func(c *gonoleks.Context) {
-		fmt.Println("🏎️ Warming up the engines...")
-		c.Next()
-	})
+    // Add middleware to the app after creating the group
+    app.Use(func(c *gonoleks.Context) {
+        fmt.Println("🏎️ Warming up the engines...")
+        c.Next()
+    })
 
-	// Middleware that matches all routes starting with /track
-	track.Use(func(c *gonoleks.Context) {
-		fmt.Println("🚦 Lights out in 3... 2... 1...")
-		c.Next()
-	})
+    // Middleware that matches all routes starting with /track
+    track.Use(func(c *gonoleks.Context) {
+        fmt.Println("🚦 Lights out in 3... 2... 1...")
+        c.Next()
+    })
 
-	// GET /track/start
-	track.GET("/start", func(c *gonoleks.Context) {
-		fmt.Println("🏎️💨 GO!")
-		c.String(200, "🏁 Full throttle!")
-	})
+    // GET /track/start
+    track.GET("/start", func(c *gonoleks.Context) {
+        fmt.Println("🏎️💨 GO!")
+        c.String(200, "🏁 Full throttle!")
+    })
 
-	app.Run(":3000")
+    app.Run(":3000")
 }
 ```
 
@@ -292,7 +292,7 @@ Your PRs, issues and any words are welcome! Thanks 🩵
 
 </div>
 
-### ☕️ Support the Creator
+## ☕️ Support the Creator
 
 If you want to support Gonoleks, you can ☕️ [Buy Me a Coffee][buymeacoffee_url].
 
@@ -302,7 +302,7 @@ If you want to support Gonoleks, you can ☕️ [Buy Me a Coffee][buymeacoffee_u
 
 </div>
 
-### 👩🏻‍💻👨🏻‍💻 Contributing
+## 👩🏻‍💻👨🏻‍💻 Contributing
 
 See [Contributing][repo_contributing_url].
 
@@ -313,7 +313,7 @@ See [Contributing][repo_contributing_url].
 </div>
 
 ## 📄 License
-[MIT][repo_license_url]
+`Gonoleks` is free and open-source software licensed under the [MIT License][repo_license_url].
 
 <!-- Go links -->
 
