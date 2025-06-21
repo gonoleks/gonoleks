@@ -1,12 +1,12 @@
 name: golangci-lint
+
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ "main" ]
     paths-ignore:
       - "**/*.md"
   pull_request:
+    branches: [ "main" ]
     paths-ignore:
       - "**/*.md"
 
