@@ -88,7 +88,7 @@ func getMethodStyle(method []byte) lipgloss.Style {
 func setLoggerSettings(settings *Settings) {
 	styles := log.DefaultStyles()
 	styles.Timestamp = lipgloss.NewStyle().Faint(true)
-	styles.Values["error"] = lipgloss.NewStyle().Foreground(lipgloss.Color("204")).Bold(true)
+	styles.Values["error"] = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
 	styles.Levels[HTTPLevel] = lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true).SetString("HTTP")
 
 	log.SetStyles(styles)
