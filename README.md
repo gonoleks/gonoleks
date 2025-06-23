@@ -319,7 +319,7 @@ See [Contributing][repo_contributing_url].
 
 [go_url]: https://go.dev
 [go_version_img]: https://img.shields.io/badge/Go-1.23+-79d4fd?style=for-the-badge&logo=go&logoColor=79d4fd
-[go_report_img]: https://img.shields.io/badge/Go_report-A+-81d99f?style=for-the-badge
+[go_report_img]: https://img.shields.io/badge/Go_report-A+-73db8c?style=for-the-badge
 [go_report_url]: https://goreportcard.com/report/github.com/gonoleks/gonoleks
 [go_dev_url]: https://pkg.go.dev/github.com/gonoleks/gonoleks
 
@@ -327,7 +327,7 @@ See [Contributing][repo_contributing_url].
 
 [repo_url]: https://github.com/gonoleks/gonoleks
 [repo_release_img]: https://img.shields.io/github/v/tag/gonoleks/gonoleks?style=for-the-badge&color=fe9774
-[repo_license_img]: https://img.shields.io/github/license/gonoleks/gonoleks?style=for-the-badge&color=aec881
+[repo_license_img]: https://img.shields.io/github/license/gonoleks/gonoleks?style=for-the-badge&color=a7c957
 [repo_license_url]: https://github.com/gonoleks/gonoleks/blob/main/LICENSE
 [repo_contributing_url]: https://github.com/gonoleks/gonoleks/blob/main/.github/CONTRIBUTING.md
 [repo_issues_url]: https://github.com/gonoleks/gonoleks/issues
