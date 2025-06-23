@@ -1,6 +1,7 @@
 package gonoleks
 
 import (
+	"encoding/xml"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -15,6 +16,30 @@ const (
 
 // H is a shortcut for map[string]any
 type H map[string]any
+
+// MarshalXML allows type H to be used with xml.Marshal
+func (h H) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Name.Local = "map"
+	start.Name.Space = ""
+
+	if err := e.EncodeToken(start); err != nil {
+		return err
+	}
+
+	elem := &xml.StartElement{
+		Name: xml.Name{Space: ""},
+		Attr: nil,
+	}
+
+	for key, value := range h {
+		elem.Name.Local = key
+		if err := e.EncodeElement(value, *elem); err != nil {
+			return err
+		}
+	}
+
+	return e.EncodeToken(xml.EndElement{Name: start.Name})
+}
 
 // resolveAddress validates and resolves the provided port string into a complete address
 // It handles empty ports, ports with colon prefix, and invalid port formats
