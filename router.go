@@ -17,6 +17,7 @@ type router struct {
 	notFound handlersChain           // Handlers for 404 Not Found responses
 	settings *Settings               // Server settings
 	pool     sync.Pool               // Reused context objects
+	app      *gonoleks               // Reference to the gonoleks app instance
 }
 
 // matchResult holds route match data
@@ -165,6 +166,7 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 
 	context := r.acquireCtx(fctx)
 	defer r.releaseCtx(context)
+	fctx.SetUserValue("gonoleksApp", r.app)
 
 	if r.settings.AutoRecover {
 		defer r.recoverFromPanic(fctx)

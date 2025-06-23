@@ -3,6 +3,7 @@ package gonoleks
 import (
 	"bytes"
 	"errors"
+	"html/template"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,6 +19,7 @@ func TestNewTemplateEngine(t *testing.T) {
 	assert.Empty(t, engine.templates, "Templates map should be empty")
 	assert.Equal(t, [2]string{"{{", "}}"}, engine.delims, "Default delimiters should be {{ and }}")
 	assert.Empty(t, engine.dir, "Directory should be empty")
+	assert.NotNil(t, engine.funcMap, "FuncMap should be initialized")
 }
 
 func TestSetDelims(t *testing.T) {
@@ -35,10 +37,10 @@ func TestLoadFiles(t *testing.T) {
 	file1Path := filepath.Join(tempDir, "test1.html")
 	file2Path := filepath.Join(tempDir, "test2.html")
 
-	err := os.WriteFile(file1Path, []byte("<h1>{{title}}</h1>"), 0o644)
+	err := os.WriteFile(file1Path, []byte("<h1>{{.title}}</h1>"), 0o644)
 	require.NoError(t, err, "Failed to create test file 1")
 
-	err = os.WriteFile(file2Path, []byte("<p>{{content}}</p>"), 0o644)
+	err = os.WriteFile(file2Path, []byte("<p>{{.content}}</p>"), 0o644)
 	require.NoError(t, err, "Failed to create test file 2")
 
 	// Test loading files
@@ -47,8 +49,8 @@ func TestLoadFiles(t *testing.T) {
 
 	assert.NoError(t, err, "LoadFiles should not return an error")
 	assert.Len(t, engine.templates, 2, "Should have loaded 2 templates")
-	assert.Equal(t, []byte("<h1>{{title}}</h1>"), engine.templates["test1.html"], "Template content should match")
-	assert.Equal(t, []byte("<p>{{content}}</p>"), engine.templates["test2.html"], "Template content should match")
+	assert.NotNil(t, engine.templates["test1.html"], "Template should be loaded")
+	assert.NotNil(t, engine.templates["test2.html"], "Template should be loaded")
 	assert.Equal(t, tempDir, engine.dir, "Directory should be set correctly")
 }
 
@@ -60,10 +62,10 @@ func TestLoadGlob(t *testing.T) {
 	file2Path := filepath.Join(tempDir, "test2.html")
 	file3Path := filepath.Join(tempDir, "other.txt")
 
-	err := os.WriteFile(file1Path, []byte("<h1>{{title}}</h1>"), 0o644)
+	err := os.WriteFile(file1Path, []byte("<h1>{{.title}}</h1>"), 0o644)
 	require.NoError(t, err, "Failed to create test file 1")
 
-	err = os.WriteFile(file2Path, []byte("<p>{{content}}</p>"), 0o644)
+	err = os.WriteFile(file2Path, []byte("<p>{{.content}}</p>"), 0o644)
 	require.NoError(t, err, "Failed to create test file 2")
 
 	err = os.WriteFile(file3Path, []byte("Not a template"), 0o644)
@@ -75,8 +77,8 @@ func TestLoadGlob(t *testing.T) {
 
 	assert.NoError(t, err, "LoadGlob should not return an error")
 	assert.Len(t, engine.templates, 2, "Should have loaded 2 templates")
-	assert.Equal(t, []byte("<h1>{{title}}</h1>"), engine.templates["test1.html"], "Template content should match")
-	assert.Equal(t, []byte("<p>{{content}}</p>"), engine.templates["test2.html"], "Template content should match")
+	assert.NotNil(t, engine.templates["test1.html"], "Template should be loaded")
+	assert.NotNil(t, engine.templates["test2.html"], "Template should be loaded")
 	assert.NotContains(t, engine.templates, "other.txt", "Should not load non-matching files")
 	assert.Equal(t, tempDir, engine.dir, "Directory should be set correctly")
 }
@@ -99,21 +101,28 @@ func TestLoadFilesEmpty(t *testing.T) {
 func TestInstance(t *testing.T) {
 	engine := NewTemplateEngine()
 
-	// Add a template directly to the map
-	engine.templates["test.html"] = []byte("<h1>{{title}}</h1>")
+	// Create and add a template directly to the map
+	tmpl := template.Must(template.New("test.html").Parse("<h1>{{.title}}</h1>"))
+	engine.templates["test.html"] = tmpl
 
 	// Test with existing template
-	data := map[string]any{"title": "Hello World"}
+	data := map[string]any{"title": "Hello, World!"}
 	renderer := engine.Instance("test.html", data)
 
 	assert.NotNil(t, renderer, "Renderer should not be nil")
+
+	// Test rendering
+	var buf bytes.Buffer
+	err := renderer.Render(&buf)
+	assert.NoError(t, err, "Rendering should not return an error")
+	assert.Equal(t, "<h1>Hello, World!</h1>", buf.String(), "Rendered content should match")
 
 	// Test with non-existent template
 	renderer = engine.Instance("nonexistent", data)
 
 	// Should return an error renderer
-	var buf bytes.Buffer
-	err := renderer.Render(&buf)
+	buf.Reset()
+	err = renderer.Render(&buf)
 	assert.Error(t, err, "Rendering non-existent template should return an error")
 	assert.Contains(t, err.Error(), "nonexistent", "Error should mention the template name")
 }
@@ -121,11 +130,12 @@ func TestInstance(t *testing.T) {
 func TestInstanceWithExtension(t *testing.T) {
 	engine := NewTemplateEngine()
 
-	// Add a template directly to the map
-	engine.templates["test.html"] = []byte("<h1>{{title}}</h1>")
+	// Create and add a template directly to the map
+	tmpl := template.Must(template.New("test.html").Parse("<h1>{{.title}}</h1>"))
+	engine.templates["test.html"] = tmpl
 
 	// Test with name without extension
-	data := map[string]any{"title": "Hello World"}
+	data := map[string]any{"title": "Hello, World!"}
 	renderer := engine.Instance("test", data)
 
 	assert.NotNil(t, renderer, "Renderer should not be nil")
@@ -133,15 +143,15 @@ func TestInstanceWithExtension(t *testing.T) {
 	var buf bytes.Buffer
 	err := renderer.Render(&buf)
 	assert.NoError(t, err, "Rendering should not return an error")
-	assert.Equal(t, "<h1>Hello World</h1>", buf.String(), "Rendered content should match")
+	assert.Equal(t, "<h1>Hello, World!</h1>", buf.String(), "Rendered content should match")
 }
 
 func TestTemplateRender(t *testing.T) {
 	// Create a template renderer directly
+	tmpl := template.Must(template.New("test").Parse("<h1>{{.title}}</h1><p>{{.content}}</p>"))
 	renderer := &templateRender{
-		Template: []byte("<h1>{{title}}</h1><p>{{content}}</p>"),
+		Template: tmpl,
 		Data:     map[string]any{"title": "Hello", "content": "World"},
-		Delims:   [2]string{"{{", "}}"},
 	}
 
 	var buf bytes.Buffer
@@ -151,19 +161,18 @@ func TestTemplateRender(t *testing.T) {
 	assert.Equal(t, "<h1>Hello</h1><p>World</p>", buf.String(), "Rendered content should match")
 }
 
-func TestTemplateRenderInvalidData(t *testing.T) {
-	// Create a template renderer with non-map data
+func TestTemplateRenderNilTemplate(t *testing.T) {
+	// Create a template renderer with nil template
 	renderer := &templateRender{
-		Template: []byte("<h1>{{title}}</h1>"),
-		Data:     "not a map", // Invalid data type
-		Delims:   [2]string{"{{", "}}"},
+		Template: nil,
+		Data:     map[string]any{"title": "Hello"},
 	}
 
 	var buf bytes.Buffer
 	err := renderer.Render(&buf)
 
-	assert.Error(t, err, "Rendering with invalid data should return an error")
-	assert.Equal(t, ErrDataMustBeMapStringAny, err, "Error should be ErrDataMustBeMapStringAny")
+	assert.Error(t, err, "Rendering with nil template should return an error")
+	assert.Equal(t, ErrTemplateNotFound, err, "Error should be ErrTemplateNotFound")
 }
 
 func TestToString(t *testing.T) {
@@ -203,12 +212,32 @@ func TestErrorRender(t *testing.T) {
 func TestSetTemplateAndFuncMap(t *testing.T) {
 	engine := NewTemplateEngine()
 
-	// These methods don't do anything, but we should test they don't crash
-	engine.SetTemplate("dummy")
-	engine.SetFuncMap(map[string]any{"func": func() {}})
+	// Test SetTemplate with string
+	engine.SetTemplate("<h1>{{.title}}</h1>")
+	assert.NotNil(t, engine.templates["default"], "Template should be set")
 
-	// No assertions needed as these methods are no-ops
-	assert.NotNil(t, engine, "Engine should still exist after calling no-op methods")
+	// Test SetTemplate with []byte
+	engine.SetTemplate([]byte("<p>{{.content}}</p>"))
+	assert.NotNil(t, engine.templates["default"], "Template should be set")
+
+	// Test SetTemplate with *template.Template
+	tmpl := template.Must(template.New("test").Parse("<div>{{.data}}</div>"))
+	engine.SetTemplate(tmpl)
+	assert.NotNil(t, engine.templates["default"], "Template should be set")
+
+	// Test SetFuncMap
+	funcMap := map[string]any{
+		"upper": func(s string) string { return s },
+	}
+	engine.SetFuncMap(funcMap)
+	assert.NotEmpty(t, engine.funcMap, "FuncMap should be set")
+
+	// Test SetFuncMap with template.FuncMap
+	tmplFuncMap := template.FuncMap{
+		"lower": func(s string) string { return s },
+	}
+	engine.SetFuncMap(tmplFuncMap)
+	assert.NotEmpty(t, engine.funcMap, "FuncMap should be set")
 }
 
 func TestLoadFileError(t *testing.T) {
@@ -218,4 +247,25 @@ func TestLoadFileError(t *testing.T) {
 	err := engine.loadFile("test.html", "/nonexistent/path/to/file.html")
 
 	assert.Error(t, err, "loadFile should return an error for non-existent file")
+}
+
+func TestSetDelimsWithTemplates(t *testing.T) {
+	engine := NewTemplateEngine()
+	engine.SetDelims("<<", ">>")
+
+	// Create temporary test file with custom delimiters
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test.html")
+	err := os.WriteFile(filePath, []byte("<h1><<.title>></h1>"), 0o644)
+	require.NoError(t, err)
+
+	// Load file and test rendering
+	err = engine.LoadFiles(filePath)
+	assert.NoError(t, err)
+
+	renderer := engine.Instance("test.html", map[string]any{"title": "Custom Delims"})
+	var buf bytes.Buffer
+	err = renderer.Render(&buf)
+	assert.NoError(t, err)
+	assert.Equal(t, "<h1>Custom Delims</h1>", buf.String())
 }

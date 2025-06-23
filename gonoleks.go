@@ -275,6 +275,7 @@ func createInstance(settings *Settings) Gonoleks {
 		pool: sync.Pool{
 			New: func() any { return new(Context) },
 		},
+		app: g,
 	}
 
 	g.httpServer = g.newHTTPServer()

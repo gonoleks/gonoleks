@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 )
 
@@ -21,19 +21,20 @@ type Render interface {
 
 // TemplateEngine implements a template engine
 type TemplateEngine struct {
-	templates map[string][]byte
+	templates map[string]*template.Template
 	lock      sync.RWMutex
 	delims    [2]string
 	dir       string
-	funcMap   any
+	funcMap   template.FuncMap
 }
 
 // NewTemplateEngine creates a new template engine instance
 func NewTemplateEngine() *TemplateEngine {
 	return &TemplateEngine{
-		templates: make(map[string][]byte),
+		templates: make(map[string]*template.Template),
 		delims:    [2]string{"{{", "}}"},
 		dir:       "",
+		funcMap:   make(template.FuncMap),
 	}
 }
 
@@ -95,8 +96,27 @@ func (e *TemplateEngine) loadFile(name, path string) error {
 		return err
 	}
 
-	// Store the template content
-	e.templates[name] = content
+	// Create a new template with the given name
+	tmpl := template.New(name)
+
+	// Set custom delimiters if they are different from default
+	if e.delims[0] != "{{" || e.delims[1] != "}}" {
+		tmpl = tmpl.Delims(e.delims[0], e.delims[1])
+	}
+
+	// Set function map if available
+	if len(e.funcMap) > 0 {
+		tmpl = tmpl.Funcs(e.funcMap)
+	}
+
+	// Parse the template content
+	tmpl, err = tmpl.Parse(string(content))
+	if err != nil {
+		return err
+	}
+
+	// Store the parsed template
+	e.templates[name] = tmpl
 	return nil
 }
 
@@ -107,20 +127,33 @@ func (e *TemplateEngine) SetTemplate(tmpl any) {
 
 	// Handle different template types
 	switch t := tmpl.(type) {
-	case string:
-		// Store as raw template content
-		e.templates["default"] = []byte(t)
-	case []byte:
+	case *template.Template:
 		e.templates["default"] = t
-	case map[string]string:
-		// Multiple templates
-		for name, content := range t {
-			e.templates[name] = []byte(content)
+	case string:
+		// Parse string as template
+		parsedTmpl := template.New("default")
+		if e.delims[0] != "{{" || e.delims[1] != "}}" {
+			parsedTmpl = parsedTmpl.Delims(e.delims[0], e.delims[1])
 		}
-	case map[string][]byte:
-		// Multiple templates as bytes
-		for name, content := range t {
-			e.templates[name] = content
+		if len(e.funcMap) > 0 {
+			parsedTmpl = parsedTmpl.Funcs(e.funcMap)
+		}
+		parsedTmpl, err := parsedTmpl.Parse(t)
+		if err == nil {
+			e.templates["default"] = parsedTmpl
+		}
+	case []byte:
+		// Parse bytes as template
+		parsedTmpl := template.New("default")
+		if e.delims[0] != "{{" || e.delims[1] != "}}" {
+			parsedTmpl = parsedTmpl.Delims(e.delims[0], e.delims[1])
+		}
+		if len(e.funcMap) > 0 {
+			parsedTmpl = parsedTmpl.Funcs(e.funcMap)
+		}
+		parsedTmpl, err := parsedTmpl.Parse(string(t))
+		if err == nil {
+			e.templates["default"] = parsedTmpl
 		}
 	}
 }
@@ -129,7 +162,25 @@ func (e *TemplateEngine) SetTemplate(tmpl any) {
 func (e *TemplateEngine) SetFuncMap(funcMap any) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
-	e.funcMap = funcMap
+
+	// Convert funcMap to template.FuncMap
+	switch fm := funcMap.(type) {
+	case template.FuncMap:
+		e.funcMap = fm
+	case map[string]any:
+		// Convert map[string]any to template.FuncMap
+		if e.funcMap == nil {
+			e.funcMap = make(template.FuncMap)
+		}
+		for k, v := range fm {
+			e.funcMap[k] = v
+		}
+	default:
+		// For other types, try to use as is
+		if e.funcMap == nil {
+			e.funcMap = make(template.FuncMap)
+		}
+	}
 }
 
 // SetDelims sets the delimiters used for template parsing
@@ -156,39 +207,23 @@ func (e *TemplateEngine) Instance(name string, data any) Render {
 	return &templateRender{
 		Template: tmpl,
 		Data:     data,
-		Delims:   e.delims,
 	}
 }
 
 // templateRender implements the Render interface
 type templateRender struct {
-	Template []byte
+	Template *template.Template
 	Data     any
-	Delims   [2]string
 }
 
 // Render executes the template with the provided data
 func (r *templateRender) Render(w io.Writer) error {
-	tmplStr := string(r.Template)
-
-	// Convert data to map if possible
-	dataMap, ok := r.Data.(map[string]any)
-	if !ok {
-		// If data is not a map, try to use it directly
-		// This is a simplified approach
-		return ErrDataMustBeMapStringAny
+	if r.Template == nil {
+		return ErrTemplateNotFound
 	}
 
-	// Simple variable replacement
-	for key, value := range dataMap {
-		varName := r.Delims[0] + key + r.Delims[1]
-		valueStr := toString(value)
-		tmplStr = strings.ReplaceAll(tmplStr, varName, valueStr)
-	}
-
-	// Write the result
-	_, err := w.Write([]byte(tmplStr))
-	return err
+	// Execute the template with the provided data
+	return r.Template.Execute(w, r.Data)
 }
 
 // toString converts a value to string
