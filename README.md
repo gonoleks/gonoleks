@@ -1,10 +1,10 @@
 <div align="center">
 
-<a name="readme-top"></a>
-
 <a href="https://github.com/gonoleks/gonoleks">
   <img width="450px" alt="Gonoleks" src="assets/gonoleks-logo.png">
 </a>
+
+<a name="readme-top"></a>
 
 # Gonoleks
 
@@ -318,16 +318,16 @@ See [Contributing][repo_contributing_url].
 <!-- Go links -->
 
 [go_url]: https://go.dev
-[go_version_img]: https://img.shields.io/badge/Go-1.23+-00ADD8?style=for-the-badge&logo=go
-[go_report_img]: https://img.shields.io/badge/Go_report-A+-success?style=for-the-badge&logo=none
+[go_version_img]: https://img.shields.io/badge/Go-1.23+-79d4fd?style=for-the-badge&logo=go&logoColor=79d4fd
+[go_report_img]: https://img.shields.io/badge/Go_report-A+-81d99f?style=for-the-badge
 [go_report_url]: https://goreportcard.com/report/github.com/gonoleks/gonoleks
 [go_dev_url]: https://pkg.go.dev/github.com/gonoleks/gonoleks
 
 <!-- Repository links -->
 
 [repo_url]: https://github.com/gonoleks/gonoleks
-[repo_release_img]: https://img.shields.io/github/v/release/gonoleks/gonoleks?style=for-the-badge
-[repo_license_img]: https://img.shields.io/github/license/gonoleks/gonoleks?style=for-the-badge
+[repo_release_img]: https://img.shields.io/github/v/tag/gonoleks/gonoleks?style=for-the-badge&color=fe9774
+[repo_license_img]: https://img.shields.io/github/license/gonoleks/gonoleks?style=for-the-badge&color=aec881
 [repo_license_url]: https://github.com/gonoleks/gonoleks/blob/main/LICENSE
 [repo_contributing_url]: https://github.com/gonoleks/gonoleks/blob/main/.github/CONTRIBUTING.md
 [repo_issues_url]: https://github.com/gonoleks/gonoleks/issues
