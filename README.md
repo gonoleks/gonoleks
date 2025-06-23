@@ -12,7 +12,6 @@
 
 [![Go version][go_version_img]][go_dev_url]
 [![Go report][go_report_img]][go_report_url]
-[![GitHub Release][repo_release_img]][repo_url]
 [![GitHub License][repo_license_img]][repo_license_url]
 
 </div>
@@ -304,7 +303,7 @@ If you want to support Gonoleks, you can ☕️ [Buy Me a Coffee][buymeacoffee_u
 
 ## 👩🏻‍💻👨🏻‍💻 Contributing
 
-See [Contributing][repo_contributing_url].
+Please read the [Contributing Guide][repo_contributing_url] before contributing.
 
 <div align="right">
 
@@ -326,7 +325,7 @@ See [Contributing][repo_contributing_url].
 <!-- Repository links -->
 
 [repo_url]: https://github.com/gonoleks/gonoleks
-[repo_release_img]: https://img.shields.io/github/v/tag/gonoleks/gonoleks?style=for-the-badge&color=fe9774
+[repo_release_img]: https://img.shields.io/github/v/release/gonoleks/gonoleks?style=for-the-badge&color=fe9774
 [repo_license_img]: https://img.shields.io/github/license/gonoleks/gonoleks?style=for-the-badge&color=a7c957
 [repo_license_url]: https://github.com/gonoleks/gonoleks/blob/main/LICENSE
 [repo_contributing_url]: https://github.com/gonoleks/gonoleks/blob/main/.github/CONTRIBUTING.md
