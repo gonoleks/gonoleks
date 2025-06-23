@@ -21,20 +21,22 @@ type Render interface {
 
 // TemplateEngine implements a template engine
 type TemplateEngine struct {
-	templates map[string]*template.Template
-	lock      sync.RWMutex
-	delims    [2]string
-	dir       string
-	funcMap   template.FuncMap
+	templates     map[string]*template.Template
+	lock          sync.RWMutex
+	delims        [2]string
+	dir           string
+	funcMap       template.FuncMap
+	templateCache map[string]*template.Template
 }
 
 // NewTemplateEngine creates a new template engine instance
 func NewTemplateEngine() *TemplateEngine {
 	return &TemplateEngine{
-		templates: make(map[string]*template.Template),
-		delims:    [2]string{"{{", "}}"},
-		dir:       "",
-		funcMap:   make(template.FuncMap),
+		templates:     make(map[string]*template.Template),
+		templateCache: make(map[string]*template.Template),
+		delims:        [2]string{"{{", "}}"},
+		dir:           "",
+		funcMap:       make(template.FuncMap),
 	}
 }
 
@@ -57,11 +59,13 @@ func (e *TemplateEngine) LoadGlob(pattern string) error {
 	// Load each file
 	for _, file := range files {
 		name := filepath.Base(file)
-		if err := e.loadFile(name, file); err != nil {
+		if err := e.loadFileUnsafe(name, file); err != nil {
 			return err
 		}
 	}
 
+	// Clear cache after loading new templates
+	e.clearCacheUnsafe()
 	return nil
 }
 
@@ -80,16 +84,18 @@ func (e *TemplateEngine) LoadFiles(files ...string) error {
 	// Load each file
 	for _, file := range files {
 		name := filepath.Base(file)
-		if err := e.loadFile(name, file); err != nil {
+		if err := e.loadFileUnsafe(name, file); err != nil {
 			return err
 		}
 	}
 
+	// Clear cache after loading new templates
+	e.clearCacheUnsafe()
 	return nil
 }
 
-// loadFile loads a single template file
-func (e *TemplateEngine) loadFile(name, path string) error {
+// loadFileUnsafe loads a single template file without locking (internal use)
+func (e *TemplateEngine) loadFileUnsafe(name, path string) error {
 	// Read the file content
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -109,7 +115,7 @@ func (e *TemplateEngine) loadFile(name, path string) error {
 		tmpl = tmpl.Funcs(e.funcMap)
 	}
 
-	// Parse the template content
+	// Parse the template content directly from bytes
 	tmpl, err = tmpl.Parse(string(content))
 	if err != nil {
 		return err
@@ -118,6 +124,20 @@ func (e *TemplateEngine) loadFile(name, path string) error {
 	// Store the parsed template
 	e.templates[name] = tmpl
 	return nil
+}
+
+// loadFile loads a single template file (public version with locking)
+func (e *TemplateEngine) loadFile(name, path string) error {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	return e.loadFileUnsafe(name, path)
+}
+
+// clearCacheUnsafe clears the template cache without locking
+func (e *TemplateEngine) clearCacheUnsafe() {
+	for k := range e.templateCache {
+		delete(e.templateCache, k)
+	}
 }
 
 // SetTemplate sets a pre-compiled template (for compatibility)
@@ -131,31 +151,34 @@ func (e *TemplateEngine) SetTemplate(tmpl any) {
 		e.templates["default"] = t
 	case string:
 		// Parse string as template
-		parsedTmpl := template.New("default")
-		if e.delims[0] != "{{" || e.delims[1] != "}}" {
-			parsedTmpl = parsedTmpl.Delims(e.delims[0], e.delims[1])
-		}
-		if len(e.funcMap) > 0 {
-			parsedTmpl = parsedTmpl.Funcs(e.funcMap)
-		}
-		parsedTmpl, err := parsedTmpl.Parse(t)
-		if err == nil {
+		if parsedTmpl := e.parseTemplateUnsafe("default", t); parsedTmpl != nil {
 			e.templates["default"] = parsedTmpl
 		}
 	case []byte:
 		// Parse bytes as template
-		parsedTmpl := template.New("default")
-		if e.delims[0] != "{{" || e.delims[1] != "}}" {
-			parsedTmpl = parsedTmpl.Delims(e.delims[0], e.delims[1])
-		}
-		if len(e.funcMap) > 0 {
-			parsedTmpl = parsedTmpl.Funcs(e.funcMap)
-		}
-		parsedTmpl, err := parsedTmpl.Parse(string(t))
-		if err == nil {
+		if parsedTmpl := e.parseTemplateUnsafe("default", string(t)); parsedTmpl != nil {
 			e.templates["default"] = parsedTmpl
 		}
 	}
+
+	// Clear cache after setting new template
+	e.clearCacheUnsafe()
+}
+
+// parseTemplateUnsafe parses template content without locking
+func (e *TemplateEngine) parseTemplateUnsafe(name, content string) *template.Template {
+	parsedTmpl := template.New(name)
+	if e.delims[0] != "{{" || e.delims[1] != "}}" {
+		parsedTmpl = parsedTmpl.Delims(e.delims[0], e.delims[1])
+	}
+	if len(e.funcMap) > 0 {
+		parsedTmpl = parsedTmpl.Funcs(e.funcMap)
+	}
+	parsedTmpl, err := parsedTmpl.Parse(content)
+	if err != nil {
+		return nil
+	}
+	return parsedTmpl
 }
 
 // SetFuncMap sets template functions
@@ -170,17 +193,25 @@ func (e *TemplateEngine) SetFuncMap(funcMap any) {
 	case map[string]any:
 		// Convert map[string]any to template.FuncMap
 		if e.funcMap == nil {
-			e.funcMap = make(template.FuncMap)
+			e.funcMap = make(template.FuncMap, len(fm))
+		} else {
+			// Clear existing map
+			for k := range e.funcMap {
+				delete(e.funcMap, k)
+			}
 		}
 		for k, v := range fm {
 			e.funcMap[k] = v
 		}
 	default:
-		// For other types, try to use as is
+		// For other types, initialize empty map
 		if e.funcMap == nil {
 			e.funcMap = make(template.FuncMap)
 		}
 	}
+
+	// Clear cache after changing function map
+	e.clearCacheUnsafe()
 }
 
 // SetDelims sets the delimiters used for template parsing
@@ -188,26 +219,48 @@ func (e *TemplateEngine) SetDelims(left, right string) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 	e.delims = [2]string{left, right}
+	// Clear cache after changing delimiters
+	e.clearCacheUnsafe()
 }
 
 // Instance returns a renderer for the specified template
 func (e *TemplateEngine) Instance(name string, data any) Render {
 	e.lock.RLock()
-	defer e.lock.RUnlock()
 
+	// First check direct template lookup
 	tmpl, ok := e.templates[name]
-	if !ok {
-		// Try with extension
-		tmpl, ok = e.templates[name+".html"]
-		if !ok {
-			return &errorRender{err: errors.Join(ErrTemplateNotFound, errors.New(name))}
+	if ok {
+		e.lock.RUnlock()
+		return &templateRender{
+			Template: tmpl,
+			Data:     data,
 		}
 	}
 
-	return &templateRender{
-		Template: tmpl,
-		Data:     data,
+	// Check cache for name with extension
+	extendedName := name + ".html"
+	if cachedTmpl, exists := e.templateCache[extendedName]; exists {
+		e.lock.RUnlock()
+		return &templateRender{
+			Template: cachedTmpl,
+			Data:     data,
+		}
 	}
+
+	// Try with extension
+	tmpl, ok = e.templates[extendedName]
+	if ok {
+		// Cache the result for future lookups
+		e.templateCache[extendedName] = tmpl
+		e.lock.RUnlock()
+		return &templateRender{
+			Template: tmpl,
+			Data:     data,
+		}
+	}
+
+	e.lock.RUnlock()
+	return &errorRender{err: errors.Join(ErrTemplateNotFound, errors.New(name))}
 }
 
 // templateRender implements the Render interface
@@ -237,6 +290,8 @@ func toString(value any) string {
 		return v.Error()
 	case nil:
 		return ""
+	case fmt.Stringer:
+		return v.String()
 	default:
 		// Use a bytes buffer to convert to string
 		buf := new(bytes.Buffer)
