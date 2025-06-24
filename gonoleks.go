@@ -52,8 +52,7 @@ type Gonoleks interface {
 	HandleContext(c *Context)
 	LoadHTMLGlob(pattern string) error
 	LoadHTMLFiles(files ...string) error
-	SetHTMLTemplate(templ any)
-	SetFuncMap(funcMap any)
+	SetFuncMap(funcMap map[string]any)
 	Delims(left, right string)
 	Handle(httpMethod, path string, handlers ...handlerFunc) *Route
 	Any(path string, handlers ...handlerFunc) []*Route
@@ -536,16 +535,8 @@ func (g *gonoleks) LoadHTMLFiles(files ...string) error {
 	return g.htmlRender.(*TemplateEngine).LoadFiles(files...)
 }
 
-// SetHTMLTemplate sets a custom HTML template
-func (g *gonoleks) SetHTMLTemplate(templ any) {
-	if g.htmlRender == nil {
-		g.htmlRender = NewTemplateEngine()
-	}
-	g.htmlRender.(*TemplateEngine).SetTemplate(templ)
-}
-
 // SetFuncMap sets template function map
-func (g *gonoleks) SetFuncMap(funcMap any) {
+func (g *gonoleks) SetFuncMap(funcMap map[string]any) {
 	if g.htmlRender == nil {
 		g.htmlRender = NewTemplateEngine()
 	}
@@ -558,11 +549,6 @@ func (g *gonoleks) Delims(left, right string) {
 		g.htmlRender = NewTemplateEngine()
 	}
 	g.htmlRender.(*TemplateEngine).SetDelims(left, right)
-}
-
-// HTMLRender sets the custom HTML renderer
-func (g *gonoleks) HTMLRender(render HTMLRender) {
-	g.htmlRender = render
 }
 
 // GET registers a route for the HTTP GET method

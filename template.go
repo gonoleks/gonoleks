@@ -1,311 +1,224 @@
 package gonoleks
 
 import (
-	"bytes"
-	"errors"
-	"fmt"
-	"html/template"
 	"io"
-	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+
+	"github.com/CloudyKit/jet/v6"
 )
 
+// HTMLRender interface defines the contract for HTML template rendering
 type HTMLRender interface {
 	Instance(name string, data any) Render
 }
 
+// Render interface defines the contract for rendering templates
 type Render interface {
-	Render(io.Writer) error
+	Render(w io.Writer) error
 }
 
-// TemplateEngine implements a template engine
+// TemplateEngine implements HTMLRender using Jet template engine
 type TemplateEngine struct {
-	templates     map[string]*template.Template
-	lock          sync.RWMutex
+	set           *jet.Set
 	delims        [2]string
-	dir           string
-	funcMap       template.FuncMap
-	templateCache map[string]*template.Template
+	funcMap       map[string]any
+	templateCache sync.Map
+	mu            sync.RWMutex
 }
 
-// NewTemplateEngine creates a new template engine instance
+// jetRender implements Render interface for Jet templates
+type jetRender struct {
+	template *jet.Template
+	data     any
+}
+
+// Pool for VarMap reuse to reduce allocations
+var varMapPool = sync.Pool{
+	New: func() interface{} {
+		return make(jet.VarMap)
+	},
+}
+
+// NewTemplateEngine creates a new Jet-based template engine
 func NewTemplateEngine() *TemplateEngine {
-	return &TemplateEngine{
-		templates:     make(map[string]*template.Template),
-		templateCache: make(map[string]*template.Template),
-		delims:        [2]string{"{{", "}}"},
-		dir:           "",
-		funcMap:       make(template.FuncMap),
-	}
+	return &TemplateEngine{}
 }
 
-// LoadGlob loads templates matching the specified pattern
-func (e *TemplateEngine) LoadGlob(pattern string) error {
-	e.lock.Lock()
-	defer e.lock.Unlock()
+// SetDelims sets the template delimiters
+func (e *TemplateEngine) SetDelims(left, right string) {
+	e.mu.Lock()
+	e.delims = [2]string{left, right}
+	if e.set != nil {
+		e.recreateSet()
+	}
+	e.mu.Unlock()
+}
 
-	// Find all files matching the pattern
+// SetFuncMap sets the function map for templates
+func (e *TemplateEngine) SetFuncMap(funcMap map[string]any) {
+	e.mu.Lock()
+	e.funcMap = funcMap
+	if e.set != nil {
+		e.addFunctionsToSet()
+	}
+	e.mu.Unlock()
+}
+
+// LoadGlob loads templates using glob pattern
+func (e *TemplateEngine) LoadGlob(pattern string) error {
 	files, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
 	}
-
-	// Store the directory for future reference
-	if len(files) > 0 {
-		e.dir = filepath.Dir(files[0])
-	}
-
-	// Load each file
-	for _, file := range files {
-		name := filepath.Base(file)
-		if err := e.loadFileUnsafe(name, file); err != nil {
-			return err
-		}
-	}
-
-	// Clear cache after loading new templates
-	e.clearCacheUnsafe()
-	return nil
+	return e.LoadFiles(files...)
 }
 
-// LoadFiles loads templates from the specified files
+// LoadFiles loads templates from specified files
 func (e *TemplateEngine) LoadFiles(files ...string) error {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-
 	if len(files) == 0 {
 		return nil
 	}
 
-	// Store the directory for future reference
-	e.dir = filepath.Dir(files[0])
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
-	// Load each file
-	for _, file := range files {
-		name := filepath.Base(file)
-		if err := e.loadFileUnsafe(name, file); err != nil {
-			return err
-		}
-	}
+	// Find the common root directory for all template files
+	var rootDir string
+	if len(files) > 0 {
+		// Get the directory from the first file
+		firstDir := filepath.Dir(files[0])
 
-	// Clear cache after loading new templates
-	e.clearCacheUnsafe()
-	return nil
-}
-
-// loadFileUnsafe loads a single template file without locking (internal use)
-func (e *TemplateEngine) loadFileUnsafe(name, path string) error {
-	// Read the file content
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-
-	// Create a new template with the given name
-	tmpl := template.New(name)
-
-	// Set custom delimiters if they are different from default
-	if e.delims[0] != "{{" || e.delims[1] != "}}" {
-		tmpl = tmpl.Delims(e.delims[0], e.delims[1])
-	}
-
-	// Set function map if available
-	if len(e.funcMap) > 0 {
-		tmpl = tmpl.Funcs(e.funcMap)
-	}
-
-	// Parse the template content directly from bytes
-	tmpl, err = tmpl.Parse(string(content))
-	if err != nil {
-		return err
-	}
-
-	// Store the parsed template
-	e.templates[name] = tmpl
-	return nil
-}
-
-// loadFile loads a single template file (public version with locking)
-func (e *TemplateEngine) loadFile(name, path string) error {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-	return e.loadFileUnsafe(name, path)
-}
-
-// clearCacheUnsafe clears the template cache without locking
-func (e *TemplateEngine) clearCacheUnsafe() {
-	for k := range e.templateCache {
-		delete(e.templateCache, k)
-	}
-}
-
-// SetTemplate sets a pre-compiled template (for compatibility)
-func (e *TemplateEngine) SetTemplate(tmpl any) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-
-	// Handle different template types
-	switch t := tmpl.(type) {
-	case *template.Template:
-		e.templates["default"] = t
-	case string:
-		// Parse string as template
-		if parsedTmpl := e.parseTemplateUnsafe("default", t); parsedTmpl != nil {
-			e.templates["default"] = parsedTmpl
-		}
-	case []byte:
-		// Parse bytes as template
-		if parsedTmpl := e.parseTemplateUnsafe("default", string(t)); parsedTmpl != nil {
-			e.templates["default"] = parsedTmpl
-		}
-	}
-
-	// Clear cache after setting new template
-	e.clearCacheUnsafe()
-}
-
-// parseTemplateUnsafe parses template content without locking
-func (e *TemplateEngine) parseTemplateUnsafe(name, content string) *template.Template {
-	parsedTmpl := template.New(name)
-	if e.delims[0] != "{{" || e.delims[1] != "}}" {
-		parsedTmpl = parsedTmpl.Delims(e.delims[0], e.delims[1])
-	}
-	if len(e.funcMap) > 0 {
-		parsedTmpl = parsedTmpl.Funcs(e.funcMap)
-	}
-	parsedTmpl, err := parsedTmpl.Parse(content)
-	if err != nil {
-		return nil
-	}
-	return parsedTmpl
-}
-
-// SetFuncMap sets template functions
-func (e *TemplateEngine) SetFuncMap(funcMap any) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-
-	// Convert funcMap to template.FuncMap
-	switch fm := funcMap.(type) {
-	case template.FuncMap:
-		e.funcMap = fm
-	case map[string]any:
-		// Convert map[string]any to template.FuncMap
-		if e.funcMap == nil {
-			e.funcMap = make(template.FuncMap, len(fm))
-		} else {
-			// Clear existing map
-			for k := range e.funcMap {
-				delete(e.funcMap, k)
+		// Find the common parent directory
+		rootDir = firstDir
+		for _, file := range files[1:] {
+			fileDir := filepath.Dir(file)
+			// Find common path between rootDir and fileDir
+			for !isSubPath(fileDir, rootDir) && !isSubPath(rootDir, fileDir) {
+				rootDir = filepath.Dir(rootDir)
+				if rootDir == "." || rootDir == "/" {
+					break
+				}
+			}
+			if isSubPath(rootDir, fileDir) {
+				rootDir = fileDir
 			}
 		}
-		for k, v := range fm {
-			e.funcMap[k] = v
-		}
-	default:
-		// For other types, initialize empty map
-		if e.funcMap == nil {
-			e.funcMap = make(template.FuncMap)
-		}
 	}
 
-	// Clear cache after changing function map
-	e.clearCacheUnsafe()
+	// Create Jet loader
+	loader := jet.NewOSFileSystemLoader(rootDir)
+
+	// Create Jet set with custom delimiters
+	e.set = jet.NewSet(
+		loader,
+		jet.WithDelims(e.delims[0], e.delims[1]),
+	)
+
+	// Add functions to the set
+	e.addFunctionsToSet()
+
+	// Clear template cache when reloading
+	e.templateCache = sync.Map{}
+
+	return nil
 }
 
-// SetDelims sets the delimiters used for template parsing
-func (e *TemplateEngine) SetDelims(left, right string) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-	e.delims = [2]string{left, right}
-	// Clear cache after changing delimiters
-	e.clearCacheUnsafe()
+// isSubPath checks if child is a subdirectory of parent
+func isSubPath(child, parent string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	return !strings.HasPrefix(rel, "..")
 }
 
-// Instance returns a renderer for the specified template
+// recreateSet recreates the Jet set with new delimiters
+func (e *TemplateEngine) recreateSet() {
+	if e.set == nil {
+		return
+	}
+	// Clear cache when recreating
+	e.templateCache = sync.Map{}
+}
+
+// addFunctionsToSet adds custom functions to the Jet set
+func (e *TemplateEngine) addFunctionsToSet() {
+	if e.set == nil {
+		return
+	}
+
+	for name, fn := range e.funcMap {
+		e.set.AddGlobal(name, fn)
+	}
+}
+
+// Instance creates a render instance for the specified template
 func (e *TemplateEngine) Instance(name string, data any) Render {
-	e.lock.RLock()
+	// Use read lock for better concurrency
+	e.mu.RLock()
+	set := e.set
+	e.mu.RUnlock()
 
-	// First check direct template lookup
-	tmpl, ok := e.templates[name]
-	if ok {
-		e.lock.RUnlock()
-		return &templateRender{
-			Template: tmpl,
-			Data:     data,
+	if set == nil {
+		return &jetRender{
+			template: nil,
+			data:     data,
 		}
 	}
 
-	// Check cache for name with extension
-	extendedName := name + ".html"
-	if cachedTmpl, exists := e.templateCache[extendedName]; exists {
-		e.lock.RUnlock()
-		return &templateRender{
-			Template: cachedTmpl,
-			Data:     data,
+	// Check cache first for instant access
+	if cached, ok := e.templateCache.Load(name); ok {
+		if template, ok := cached.(*jet.Template); ok {
+			return &jetRender{
+				template: template,
+				data:     data,
+			}
 		}
 	}
 
-	// Try with extension
-	tmpl, ok = e.templates[extendedName]
-	if ok {
-		// Cache the result for future lookups
-		e.templateCache[extendedName] = tmpl
-		e.lock.RUnlock()
-		return &templateRender{
-			Template: tmpl,
-			Data:     data,
+	// Get template from Jet set
+	template, err := set.GetTemplate(name)
+	if err != nil {
+		return &jetRender{
+			template: nil,
+			data:     data,
 		}
 	}
 
-	e.lock.RUnlock()
-	return &errorRender{err: errors.Join(ErrTemplateNotFound, errors.New(name))}
+	// Cache for future requests
+	e.templateCache.Store(name, template)
+
+	return &jetRender{
+		template: template,
+		data:     data,
+	}
 }
 
-// templateRender implements the Render interface
-type templateRender struct {
-	Template *template.Template
-	Data     any
-}
-
-// Render executes the template with the provided data
-func (r *templateRender) Render(w io.Writer) error {
-	if r.Template == nil {
+// Render renders the template to the writer
+func (r *jetRender) Render(w io.Writer) error {
+	if r.template == nil {
 		return ErrTemplateNotFound
 	}
 
-	// Execute the template with the provided data
-	return r.Template.Execute(w, r.Data)
-}
+	// Use pooled VarMap to reduce allocations
+	vars := varMapPool.Get().(jet.VarMap)
+	defer func() {
+		// Clear and return to pool
+		for k := range vars {
+			delete(vars, k)
+		}
+		varMapPool.Put(vars)
+	}()
 
-// toString converts a value to string
-func toString(value any) string {
-	switch v := value.(type) {
-	case string:
-		return v
-	case []byte:
-		return string(v)
-	case error:
-		return v.Error()
-	case nil:
-		return ""
-	case fmt.Stringer:
-		return v.String()
-	default:
-		// Use a bytes buffer to convert to string
-		buf := new(bytes.Buffer)
-		fmt.Fprint(buf, v)
-		return buf.String()
+	// Convert data to variables if it's a map
+	if dataMap, ok := r.data.(map[string]any); ok {
+		for key, value := range dataMap {
+			vars.Set(key, value)
+		}
 	}
-}
 
-// errorRender is a renderer that always returns an error
-type errorRender struct {
-	err error
-}
-
-// Render returns the stored error
-func (r *errorRender) Render(w io.Writer) error {
-	return r.err
+	// Execute template
+	return r.template.Execute(w, vars, r.data)
 }
