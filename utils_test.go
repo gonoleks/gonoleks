@@ -2,6 +2,7 @@ package gonoleks
 
 import (
 	"encoding/xml"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -111,8 +112,10 @@ func TestMarshalXML(t *testing.T) {
 	assert.Contains(t, actual4, "<map>")
 	assert.Contains(t, actual4, "</map>")
 	assert.Contains(t, actual4, "<status>active</status>")
-	// The nested structure appears as <map><map>...</map>... due to how MarshalXML works
-	assert.Contains(t, actual4, "<map><map>")
+	// The nested structure contains a nested <map> element, but not necessarily adjacent
+	// Count the number of <map> tags to ensure we have nested maps
+	mapCount := strings.Count(actual4, "<map>")
+	assert.Equal(t, 2, mapCount, "Expected 2 <map> tags for nested structure")
 	assert.Contains(t, actual4, "<id>1</id>")
 	assert.Contains(t, actual4, "<name>Arman</name>")
 }
