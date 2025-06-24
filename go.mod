@@ -3,6 +3,7 @@ module github.com/gonoleks/gonoleks
 go 1.23.0
 
 require (
+	github.com/CloudyKit/jet/v6 v6.3.1
 	github.com/bytedance/sonic v1.13.3
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/log v0.4.2
@@ -15,6 +16,7 @@ require (
 )
 
 require (
+	github.com/CloudyKit/fastprinter v0.0.0-20200109182630-33d98a066a53 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bytedance/sonic/loader v0.2.4 // indirect
