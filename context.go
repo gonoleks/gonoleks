@@ -300,9 +300,9 @@ func (c *Context) PostForm(key string) string {
 // otherwise it returns ("", false)
 // For example, during a PATCH request to update the user's email:
 //
-//	    email=mail@example.com  -->  ("mail@example.com", true) := GetPostForm("email") // set email to "mail@example.com"
-//		    email=                  -->  ("", true) := GetPostForm("email") // set email to ""
-//	                            -->  ("", false) := GetPostForm("email") // do nothing with email
+//	email=mail@example.com --> ("mail@example.com", true) := GetPostForm("email") // Set email to "mail@example.com"
+//	email=                 --> ("", true)                 := GetPostForm("email") // Set email to ""
+//	                       --> ("", false)                := GetPostForm("email") // Do nothing with email
 func (c *Context) GetPostForm(key string) (string, bool) {
 	// First check if it's a urlencoded form
 	if v := c.requestCtx.PostArgs().PeekBytes(getBytes(key)); v != nil {
@@ -738,8 +738,8 @@ func (c *Context) GetRawData() ([]byte, error) {
 }
 
 // SetCookie adds a Set-Cookie header to the ResponseWriter's headers
-// The provided cookie must have a valid Name. Invalid cookies may be
-// silently dropped
+// The provided cookie must have a valid Name
+// Invalid cookies may be silently dropped
 func (c *Context) SetCookie(name, value string, maxAge int, path, domain string, secure, httpOnly bool) {
 	if path == "" {
 		path = "/"
@@ -765,10 +765,9 @@ func (c *Context) SetCookie(name, value string, maxAge int, path, domain string,
 	c.requestCtx.Response.Header.SetCookie(cookie)
 }
 
-// Cookie returns the named cookie provided in the request or
-// ErrNoCookie if not found. And return the named cookie is unescaped
-// If multiple cookies match the given name, only one cookie will
-// be returned
+// Cookie returns the named cookie provided in the request or ErrNoCookie if not found
+// And return the named cookie is unescaped
+// If multiple cookies match the given name, only one cookie will be returned
 func (c *Context) Cookie(name string) (string, error) {
 	cookie := c.requestCtx.Request.Header.Cookie(name)
 	if len(cookie) == 0 {
