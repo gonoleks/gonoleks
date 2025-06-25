@@ -377,16 +377,29 @@ func TestHandleMethod(t *testing.T) {
 	assert.Equal(t, customMethod, route.Method, "Route method should match custom method")
 }
 
-func TestNotFound(t *testing.T) {
+func TestNoRoute(t *testing.T) {
 	app := New()
 
-	// Register a custom NotFound handler
-	app.NotFound(func(c *Context) {
-		// Custom not found handler
+	// Register a custom NoRoute handler
+	app.NoRoute(func(c *Context) {
 	})
 
 	// Access the internal router to verify NotFound handler was registered
 	appImpl := app.(*gonoleks)
-	assert.NotNil(t, appImpl.router.notFound, "NotFound handler should be registered")
-	assert.Equal(t, 1, len(appImpl.router.notFound), "NotFound should register exactly one handler")
+	assert.NotNil(t, appImpl.router.noRoute, "NoRoute handler should be registered")
+	assert.Equal(t, 1, len(appImpl.router.noRoute), "NoRoute should register exactly one handler")
+}
+
+func TestNoMethod(t *testing.T) {
+	app := New()
+
+	// Register a custom NoMethod handler
+	app.NoMethod(func(c *Context) {
+		c.String(StatusMethodNotAllowed, "Custom Method Not Allowed")
+	})
+
+	// Access the internal router to verify NoMethod handler was registered
+	appImpl := app.(*gonoleks)
+	assert.NotNil(t, appImpl.router.noMethod, "NoMethod handler should be registered")
+	assert.Equal(t, 1, len(appImpl.router.noMethod), "NoMethod should register exactly one handler")
 }

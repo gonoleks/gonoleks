@@ -258,37 +258,37 @@ func TestRouterHandleMethodNotAllowed(t *testing.T) {
 	assert.False(t, r.handleMethodNotAllowed(fctx, MethodPost, "/nonexistent", ctx), "Method not allowed for non-existent path should not be handled")
 }
 
-func TestRouterHandleNotFound(t *testing.T) {
+func TestRouterHandleNoRoute(t *testing.T) {
 	r := createTestRouter()
 
 	// Create a request context
 	fctx := createTestRequestCtx(MethodGet, "/nonexistent")
 	ctx := r.acquireCtx(fctx)
 
-	// Test handling not found without custom handlers
-	assert.False(t, r.handleNotFound(ctx), "Not found without custom handlers should not be handled")
+	// Test handling no route without custom handlers
+	assert.False(t, r.handleNoRoute(ctx), "No route without custom handlers should not be handled")
 
-	// Set custom not found handlers
+	// Set custom no route handlers
 	handlerCalled := false
-	r.SetNotFound(handlersChain{func(c *Context) {
+	r.SetNoRoute(handlersChain{func(c *Context) {
 		handlerCalled = true
 		c.Status(StatusNotFound)
 	}})
 
-	// Test handling not found with custom handlers
-	assert.True(t, r.handleNotFound(ctx), "Not found with custom handlers should be handled")
-	assert.True(t, handlerCalled, "Not found handler should be called")
+	// Test handling no route with custom handlers
+	assert.True(t, r.handleNoRoute(ctx), "No route with custom handlers should be handled")
+	assert.True(t, handlerCalled, "No route handler should be called")
 }
 
-func TestRouterSetNotFound(t *testing.T) {
+func TestRouterSetNoRoute(t *testing.T) {
 	r := createTestRouter()
 	handler := func(c *Context) {}
 
-	// Set not found handlers
-	r.SetNotFound(handlersChain{handler})
+	// Set no route handlers
+	r.SetNoRoute(handlersChain{handler})
 
 	// Verify handlers were set
-	assert.Equal(t, 1, len(r.notFound), "Not found handlers should be set")
+	assert.Equal(t, 1, len(r.noRoute), "No route handlers should be set")
 }
 
 func TestRouterHandler(t *testing.T) {

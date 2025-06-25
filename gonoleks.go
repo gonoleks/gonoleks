@@ -48,7 +48,8 @@ type Gonoleks interface {
 	Static(path, root string)
 	StaticFile(path, filepath string)
 	Use(middleware ...handlerFunc)
-	NotFound(handlers ...handlerFunc)
+	NoRoute(handlers ...handlerFunc)
+	NoMethod(handlers ...handlerFunc)
 	HandleContext(c *Context)
 	LoadHTMLGlob(pattern string) error
 	LoadHTMLFiles(files ...string) error
@@ -472,8 +473,8 @@ func (g *gonoleks) Static(path, root string) {
 		}
 
 		// Pass to custom not found handlers if available
-		if len(g.router.notFound) > 0 {
-			g.router.notFound[0](c)
+		if len(g.router.noRoute) > 0 {
+			g.router.noRoute[0](c)
 			return
 		}
 
@@ -507,9 +508,15 @@ func (g *gonoleks) Use(middlewares ...handlerFunc) {
 	g.middlewares = append(g.middlewares, middlewares...)
 }
 
-// NotFound registers custom handlers for 404 Not Found responses
-func (g *gonoleks) NotFound(handlers ...handlerFunc) {
-	g.router.notFound = handlers
+// NoRoute registers custom handlers for 404 Not Found responses
+func (g *gonoleks) NoRoute(handlers ...handlerFunc) {
+	g.router.noRoute = handlers
+}
+
+// NoMethod registers custom handlers for 405 Method Not Allowed responses
+// Note: Only works when HandleMethodNotAllowed: true
+func (g *gonoleks) NoMethod(handlers ...handlerFunc) {
+	g.router.noMethod = handlers
 }
 
 // HandleContext re-enters a context that has been rewritten

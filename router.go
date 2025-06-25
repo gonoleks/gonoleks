@@ -14,7 +14,8 @@ import (
 type router struct {
 	trees    map[string]*node        // Route trees by HTTP method
 	cache    *lru.Cache[string, any] // LRU cache for optimizing route lookups
-	notFound handlersChain           // Handlers for 404 Not Found responses
+	noRoute  handlersChain           // Handlers for 404 Not Found responses
+	noMethod handlersChain           // Handlers for 405 Method Not Allowed responses
 	settings *Settings               // Server settings
 	pool     sync.Pool               // Reused context objects
 	app      *gonoleks               // Reference to the gonoleks app instance
@@ -196,7 +197,7 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 		r.handleRoute(methodStr, pathStr, context) ||
 		(methodStr == MethodOptions && r.settings.HandleOPTIONS && r.handleOptions(fctx, methodStr, pathStr, context)) ||
 		(r.settings.HandleMethodNotAllowed && r.handleMethodNotAllowed(fctx, methodStr, pathStr, context)) ||
-		r.handleNotFound(context) {
+		r.handleNoRoute(context) {
 		// Request handled successfully
 	} else {
 		fctx.Error(fasthttp.StatusMessage(StatusNotFound), StatusNotFound)
@@ -306,6 +307,16 @@ func (r *router) handleOptions(fctx *fasthttp.RequestCtx, method, path string, c
 func (r *router) handleMethodNotAllowed(fctx *fasthttp.RequestCtx, method, path string, context *Context) bool {
 	if allow := r.allowed(method, path, context); len(allow) > 0 {
 		fctx.Response.Header.Set("Allow", allow)
+
+		// Use custom handlers if available
+		if r.noMethod != nil {
+			fctx.SetStatusCode(StatusMethodNotAllowed)
+			context.handlers = r.noMethod
+			context.Next()
+			return true
+		}
+
+		// Default Method Not Allowed response
 		fctx.SetStatusCode(StatusMethodNotAllowed)
 		fctx.SetContentTypeBytes([]byte(MIMETextPlainCharsetUTF8))
 		fctx.SetBodyString(fasthttp.StatusMessage(StatusMethodNotAllowed))
@@ -314,18 +325,18 @@ func (r *router) handleMethodNotAllowed(fctx *fasthttp.RequestCtx, method, path 
 	return false
 }
 
-// handleNotFound executes custom 404 Not Found handlers if configured
+// handleNoRoute executes custom 404 Not Found handlers if configured
 // Returns true if custom handlers were executed, false otherwise
-func (r *router) handleNotFound(context *Context) bool {
-	if r.notFound != nil {
-		r.notFound[0](context)
+func (r *router) handleNoRoute(context *Context) bool {
+	if r.noRoute != nil {
+		r.noRoute[0](context)
 		return true
 	}
 	return false
 }
 
-// SetNotFound registers custom handler functions for 404 Not Found responses
+// SetNoRoute registers custom handler functions for 404 Not Found responses
 // These handlers will be executed when no matching route is found
-func (r *router) SetNotFound(handlers handlersChain) {
-	r.notFound = append(r.notFound, handlers...)
+func (r *router) SetNoRoute(handlers handlersChain) {
+	r.noRoute = append(r.noRoute, handlers...)
 }
