@@ -403,3 +403,26 @@ func TestNoMethod(t *testing.T) {
 	assert.NotNil(t, appImpl.router.noMethod, "NoMethod handler should be registered")
 	assert.Equal(t, 1, len(appImpl.router.noMethod), "NoMethod should register exactly one handler")
 }
+
+func TestSecureJsonPrefix(t *testing.T) {
+	app := New()
+
+	// Test default secure JSON prefix
+	appImpl := app.(*gonoleks)
+	assert.Equal(t, "while(1);", appImpl.secureJsonPrefix, "Default secure JSON prefix should be 'while(1);'")
+
+	// Test setting custom secure JSON prefix
+	customPrefix := ")]}',\n"
+	app.SecureJsonPrefix(customPrefix)
+	assert.Equal(t, customPrefix, appImpl.secureJsonPrefix, "Custom secure JSON prefix should be set correctly")
+
+	// Test setting empty prefix
+	emptyPrefix := ""
+	app.SecureJsonPrefix(emptyPrefix)
+	assert.Equal(t, emptyPrefix, appImpl.secureJsonPrefix, "Empty secure JSON prefix should be set correctly")
+
+	// Test setting another custom prefix
+	anotherPrefix := "/**/"
+	app.SecureJsonPrefix(anotherPrefix)
+	assert.Equal(t, anotherPrefix, appImpl.secureJsonPrefix, "Another custom secure JSON prefix should be set correctly")
+}

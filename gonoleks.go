@@ -50,6 +50,7 @@ type Gonoleks interface {
 	Use(middleware ...handlerFunc)
 	NoRoute(handlers ...handlerFunc)
 	NoMethod(handlers ...handlerFunc)
+	SecureJsonPrefix(prefix string)
 	HandleContext(c *Context)
 	LoadHTMLGlob(pattern string) error
 	LoadHTMLFiles(files ...string) error
@@ -78,6 +79,7 @@ type gonoleks struct {
 	middlewares      handlersChain
 	settings         *Settings
 	htmlRender       HTMLRender
+	secureJsonPrefix string
 }
 
 // Settings struct holds server configuration options
@@ -223,17 +225,6 @@ type Route struct {
 	Handlers handlersChain
 }
 
-// Default returns a new instance of Gonoleks with default settings
-func Default(settings ...*Settings) Gonoleks {
-	if len(settings) > 0 {
-		return createInstance(settings[0])
-	}
-
-	return createInstance(&Settings{
-		AutoRecover: true,
-	})
-}
-
 // New returns a new blank instance of Gonoleks without any middleware attached
 func New(settings ...*Settings) Gonoleks {
 	if len(settings) > 0 {
@@ -247,12 +238,24 @@ func New(settings ...*Settings) Gonoleks {
 	})
 }
 
+// Default returns a new instance of Gonoleks with default settings
+func Default(settings ...*Settings) Gonoleks {
+	if len(settings) > 0 {
+		return createInstance(settings[0])
+	}
+
+	return createInstance(&Settings{
+		AutoRecover: true,
+	})
+}
+
 // createInstance creates a new instance of Gonoleks with provided settings
 func createInstance(settings *Settings) Gonoleks {
 	g := &gonoleks{
 		registeredRoutes: make([]*Route, 0),
 		middlewares:      make(handlersChain, 0),
 		settings:         settings,
+		secureJsonPrefix: "while(1);",
 	}
 
 	g.setDefaultSettings()
@@ -410,7 +413,7 @@ func (g *gonoleks) setupRouter() {
 	g.middlewares = nil
 }
 
-// Stop gracefully shuts down the server
+// Shutdown gracefully shuts down the server
 func (g *gonoleks) Shutdown() error {
 	err := g.httpServer.Shutdown()
 	if err == nil && g.address != "" {
@@ -517,6 +520,11 @@ func (g *gonoleks) NoRoute(handlers ...handlerFunc) {
 // Note: Only works when HandleMethodNotAllowed: true
 func (g *gonoleks) NoMethod(handlers ...handlerFunc) {
 	g.router.noMethod = handlers
+}
+
+// SecureJsonPrefix sets the secureJSONPrefix used in Context.SecureJSON
+func (g *gonoleks) SecureJsonPrefix(prefix string) {
+	g.secureJsonPrefix = prefix
 }
 
 // HandleContext re-enters a context that has been rewritten

@@ -835,10 +835,11 @@ func (c *Context) IndentedJSON(code int, obj any) error {
 }
 
 // SecureJSON serializes the provided data to JSON with a security prefix
-// The prefix helps prevent JSON hijacking attacks by making the response non-executable
+// The prefix helps prevent JSON hijacking attacks by making the response invalid JavaScript
 // It automatically sets the Content-Type header to "application/json"
 func (c *Context) SecureJSON(code int, obj any) error {
-	const securePrefix = "while(1);"
+	app := c.requestCtx.UserValue("gonoleksApp").(*gonoleks)
+	securePrefix := app.secureJsonPrefix
 
 	c.requestCtx.Response.SetStatusCode(code)
 	c.requestCtx.Response.Header.SetContentType(MIMEApplicationJSON)
