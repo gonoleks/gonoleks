@@ -2,7 +2,6 @@ package gonoleks
 
 import (
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -126,8 +125,7 @@ func (c *Context) AbortWithStatusJSON(status int, jsonObj any) error {
 // AbortWithError calls `AbortWithStatus()` and logs the given error
 func (c *Context) AbortWithError(code int, err error) error {
 	c.AbortWithStatus(code)
-	// Log the error
-	log.Error(ErrRequestAbortedWithError, "error", err, "status", code)
+	log.Error(ErrRequestAbortedWithError, "error", err, "code", code)
 	return err
 }
 
@@ -508,7 +506,7 @@ func (c *Context) BindForm(obj any) error {
 	err := formDecoder.Decode(obj, values)
 	if err != nil {
 		log.Error(ErrFormBindingFailed, "error", err)
-		return errors.Join(ErrFormBind, err)
+		return fmt.Errorf("%v: %w", ErrFormBind, err)
 	}
 
 	return nil
@@ -537,7 +535,7 @@ func (c *Context) BindMultipartForm(obj any, maxMemory int64) error {
 	err = formDecoder.Decode(obj, values)
 	if err != nil {
 		log.Error(ErrFormBindingFailed, "error", err)
-		return errors.Join(ErrFormBind, err)
+		return fmt.Errorf("%v: %w", ErrFormBind, err)
 	}
 
 	return nil
@@ -797,7 +795,7 @@ func (c *Context) HTML(code int, name string, obj any) {
 
 	// Render the template
 	if err := render.Render(c.requestCtx); err != nil {
-		_ = c.AbortWithError(StatusInternalServerError, errors.Join(ErrHTMLTemplateRender, err))
+		_ = c.AbortWithError(StatusInternalServerError, fmt.Errorf("%v: %w", ErrHTMLTemplateRender, err))
 	}
 }
 
@@ -811,7 +809,7 @@ func (c *Context) JSON(code int, obj any) error {
 	jsonBytes, err := sonic.ConfigFastest.Marshal(obj)
 	if err != nil {
 		log.Error(ErrJSONMarshalingFailed, "error", err)
-		return errors.Join(ErrJSONMarshal, err)
+		return fmt.Errorf("%v: %w", ErrJSONMarshal, err)
 	}
 
 	// Write directly to response body
@@ -829,7 +827,7 @@ func (c *Context) IndentedJSON(code int, obj any) error {
 	raw, err := sonic.ConfigFastest.MarshalIndent(obj, "", "    ")
 	if err != nil {
 		log.Error(ErrIndentedJSONMarshalingFailed, "error", err)
-		return errors.Join(ErrIndentedJSONMarshal, err)
+		return fmt.Errorf("%v: %w", ErrIndentedJSONMarshal, err)
 	}
 
 	c.requestCtx.Response.SetBodyRaw(raw)
@@ -848,7 +846,7 @@ func (c *Context) SecureJSON(code int, obj any) error {
 	raw, err := sonic.ConfigFastest.Marshal(obj)
 	if err != nil {
 		log.Error(ErrSecureJSONMarshalingFailed, "error", err)
-		return errors.Join(ErrSecureJSONMarshal, err)
+		return fmt.Errorf("%v: %w", ErrSecureJSONMarshal, err)
 	}
 
 	// Prefix the JSON with the secure string
@@ -866,7 +864,7 @@ func (c *Context) AsciiJSON(code int, obj any) error {
 	ret, err := sonic.ConfigFastest.Marshal(obj)
 	if err != nil {
 		log.Error(ErrAsciiJSONMarshalingFailed, "error", err)
-		return errors.Join(ErrAsciiJSONMarshal, err)
+		return fmt.Errorf("%v: %w", ErrAsciiJSONMarshal, err)
 	}
 
 	// Escape all non-ASCII and special characters as \uXXXX
@@ -899,7 +897,7 @@ func (c *Context) PureJSON(code int, obj any) error {
 	raw, err := sonic.ConfigFastest.Marshal(obj)
 	if err != nil {
 		log.Error(ErrPureJSONMarshalingFailed, "error", err)
-		return errors.Join(ErrPureJSONMarshal, err)
+		return fmt.Errorf("%v: %w", ErrPureJSONMarshal, err)
 	}
 
 	c.requestCtx.Response.SetBodyRaw(raw)
@@ -915,7 +913,7 @@ func (c *Context) XML(code int, obj any) error {
 	raw, err := xml.Marshal(obj)
 	if err != nil {
 		log.Error(ErrXMLMarshalingFailed, "error", err)
-		return errors.Join(ErrXMLMarshal, err)
+		return fmt.Errorf("%v: %w", ErrXMLMarshal, err)
 	}
 
 	c.requestCtx.Response.SetBodyRaw(raw)
@@ -931,7 +929,7 @@ func (c *Context) YAML(code int, obj any) error {
 	raw, err := yaml.Marshal(obj)
 	if err != nil {
 		log.Error(ErrYAMLMarshalingFailed, "error", err)
-		return errors.Join(ErrYAMLMarshal, err)
+		return fmt.Errorf("%v: %w", ErrXMLMarshal, err)
 	}
 
 	c.requestCtx.Response.SetBodyRaw(raw)
@@ -947,7 +945,7 @@ func (c *Context) TOML(code int, obj any) error {
 	raw, err := toml.Marshal(obj)
 	if err != nil {
 		log.Error(ErrTOMLMarshalingFailed, "error", err)
-		return errors.Join(ErrTOMLMarshal, err)
+		return fmt.Errorf("%v: %w", ErrTOMLMarshal, err)
 	}
 
 	c.requestCtx.Response.SetBodyRaw(raw)
@@ -966,13 +964,13 @@ func (c *Context) ProtoBuf(code int, obj any) error {
 	if !ok {
 		err := ErrProtoMessageInterface
 		log.Error(ErrProtoBufMarshalingFailed, "error", err)
-		return errors.Join(ErrProtoBufMarshal, err)
+		return fmt.Errorf("%v: %w", ErrProtoBufMarshal, err)
 	}
 
 	raw, err := proto.Marshal(msg)
 	if err != nil {
 		log.Error(ErrProtoBufMarshalingFailed, "error", err)
-		return errors.Join(ErrProtoBufMarshal, err)
+		return fmt.Errorf("%v: %w", ErrProtoBufMarshal, err)
 	}
 
 	c.requestCtx.Response.SetBodyRaw(raw)
@@ -1014,7 +1012,7 @@ func (c *Context) ParseBody(obj any) error {
 	}
 
 	log.Error(ErrUnsupportedContentType, "contentType", contentType)
-	return errors.Join(ErrContentType, errors.New(contentType))
+	return fmt.Errorf("%v: %s", ErrContentType, contentType)
 }
 
 // Redirect performs an HTTP redirect to the specified location
