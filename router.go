@@ -16,7 +16,7 @@ type router struct {
 	cache    *lru.Cache[string, any] // LRU cache for optimizing route lookups
 	noRoute  handlersChain           // Handlers for 404 Not Found responses
 	noMethod handlersChain           // Handlers for 405 Method Not Allowed responses
-	settings *Settings               // Server settings
+	options  *Options                // Server options
 	pool     sync.Pool               // Reused context objects
 	app      *gonoleks               // Reference to the gonoleks app instance
 }
@@ -161,7 +161,7 @@ func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 // It manages the request lifecycle, including routing, execution, and response generation
 func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 	var startTime time.Time
-	if !r.settings.DisableLogging {
+	if !r.options.DisableLogging {
 		startTime = time.Now()
 	}
 
@@ -169,7 +169,7 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 	defer r.releaseCtx(context)
 	fctx.SetUserValue("gonoleksApp", r.app)
 
-	if r.settings.AutoRecover {
+	if r.options.AutoRecover {
 		defer r.recoverFromPanic(fctx)
 	}
 
@@ -178,7 +178,7 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 	path := fctx.URI().PathOriginal()
 
 	// Validate path length to prevent potential issues
-	if len(path) > r.settings.MaxRequestURLLength {
+	if len(path) > r.options.MaxRequestURLLength {
 		fctx.Error("Request URL too long", StatusRequestURITooLong)
 		return
 	}
@@ -186,7 +186,7 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 	// Only convert to string if case insensitivity is needed
 	methodStr := getString(method)
 	var pathStr string
-	if r.settings.CaseInSensitive {
+	if r.options.CaseInSensitive {
 		pathStr = strings.ToLower(getString(path))
 	} else {
 		pathStr = getString(path)
@@ -195,8 +195,8 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 	// Streamlined handling with early returns
 	if r.handleCache(methodStr, pathStr, context) ||
 		r.handleRoute(methodStr, pathStr, context) ||
-		(methodStr == MethodOptions && r.settings.HandleOPTIONS && r.handleOptions(fctx, methodStr, pathStr, context)) ||
-		(r.settings.HandleMethodNotAllowed && r.handleMethodNotAllowed(fctx, methodStr, pathStr, context)) ||
+		(methodStr == MethodOptions && r.options.HandleOPTIONS && r.handleOptions(fctx, methodStr, pathStr, context)) ||
+		(r.options.HandleMethodNotAllowed && r.handleMethodNotAllowed(fctx, methodStr, pathStr, context)) ||
 		r.handleNoRoute(context) {
 		// Request handled successfully
 	} else {
@@ -204,7 +204,7 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 	}
 
 	// Conditional latency calculation
-	if !r.settings.DisableLogging {
+	if !r.options.DisableLogging {
 		latency := time.Since(startTime)
 		logHTTPTransaction(fctx, latency)
 	}
@@ -222,7 +222,7 @@ func (r *router) recoverFromPanic(fctx *fasthttp.RequestCtx) {
 // handleCache attempts to serve a request from the route cache
 // Returns true if the request was handled from cache, false otherwise
 func (r *router) handleCache(method, path string, context *Context) bool {
-	if r.settings.DisableCaching || r.cache == nil {
+	if r.options.DisableCaching || r.cache == nil {
 		return false
 	}
 
@@ -268,7 +268,7 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 	handlers := root.matchRoute(path, context)
 	if handlers != nil {
 		// Cache the successful match if caching is enabled
-		if !r.settings.DisableCaching && r.cache != nil &&
+		if !r.options.DisableCaching && r.cache != nil &&
 			(method == MethodGet || method == MethodPost || method == MethodHead || method == MethodOptions) {
 			// Create a copy of the current parameter values to store in cache
 			params := make(map[string]string, len(context.paramValues))

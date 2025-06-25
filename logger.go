@@ -83,9 +83,9 @@ func getMethodStyle(method []byte) lipgloss.Style {
 	return methodDefaultStyle
 }
 
-// setLoggerSettings configures the global logger with custom styles and output settings
+// setLoggerOptions configures the global logger with custom styles and output options
 // It initializes color schemes, output destination, and default logging behavior
-func setLoggerSettings(settings *Settings) {
+func setLoggerOptions(options *Options) {
 	styles := log.DefaultStyles()
 	styles.Timestamp = lipgloss.NewStyle().Faint(true)
 	styles.Values["error"] = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
@@ -95,18 +95,18 @@ func setLoggerSettings(settings *Settings) {
 	log.SetOutput(os.Stderr)
 
 	// Apply custom time format if provided, otherwise use default format
-	if settings.LogTimeFormat == "" {
-		settings.LogTimeFormat = "2006/01/02 15:04:05"
+	if options.LogTimeFormat == "" {
+		options.LogTimeFormat = "2006/01/02 15:04:05"
 	}
-	log.SetTimeFormat(settings.LogTimeFormat)
+	log.SetTimeFormat(options.LogTimeFormat)
 
 	// Setup logger prefix if provided
-	if settings.LogPrefix != "" {
-		log.SetPrefix(settings.LogPrefix)
+	if options.LogPrefix != "" {
+		log.SetPrefix(options.LogPrefix)
 	}
 
-	// Configure caller reporting based on settings or use default
-	if settings.LogReportCaller {
+	// Configure caller reporting based on options or use default
+	if options.LogReportCaller {
 		log.SetReportCaller(true)
 	}
 }
@@ -127,7 +127,7 @@ func logWithOptionalFields(level log.Level, format string, args []any, fields []
 // logHTTPTransaction records details of an HTTP request-response cycle with color-coded formatting
 // It logs the status code, latency, HTTP method and path, with optional response body or error message
 func logHTTPTransaction(ctx *fasthttp.RequestCtx, latency time.Duration) {
-	settings, _ := ctx.UserValue("gonoleksSettings").(*Settings)
+	options, _ := ctx.UserValue("gonoleksOptions").(*Options)
 	status := ctx.Response.StatusCode()
 	method := ctx.Method()
 
@@ -135,21 +135,21 @@ func logHTTPTransaction(ctx *fasthttp.RequestCtx, latency time.Duration) {
 	var logFields []any
 
 	// Only convert body to string if we're going to use it
-	if settings != nil && ((status >= StatusBadRequest && settings.LogReportResponseError) ||
-		(status < StatusBadRequest && settings.LogReportResponseBody)) {
+	if options != nil && ((status >= StatusBadRequest && options.LogReportResponseError) ||
+		(status < StatusBadRequest && options.LogReportResponseBody)) {
 		body := getString(ctx.Response.Body())
 
 		if status >= StatusBadRequest {
-			if settings.LogReportResponseError && len(body) > 0 {
+			if options.LogReportResponseError && len(body) > 0 {
 				logFields = append(logFields, "error", body)
 			}
-		} else if settings.LogReportResponseBody && len(body) > 0 {
+		} else if options.LogReportResponseBody && len(body) > 0 {
 			logFields = append(logFields, "responseBody", body)
 		}
 	}
 
 	// Add request headers if configured
-	if settings != nil && settings.LogReportRequestHeaders {
+	if options != nil && options.LogReportRequestHeaders {
 		// Create a map for headers
 		headers := make(map[string]string, 10) // Provide initial capacity
 		ctx.Request.Header.VisitAll(func(key, value []byte) {
@@ -161,7 +161,7 @@ func logHTTPTransaction(ctx *fasthttp.RequestCtx, latency time.Duration) {
 	}
 
 	// Add request body if configured
-	if settings != nil && settings.LogReportRequestBody {
+	if options != nil && options.LogReportRequestBody {
 		reqBody := getString(ctx.Request.Body())
 		if len(reqBody) > 0 {
 			logFields = append(logFields, "requestBody", reqBody)
@@ -169,7 +169,7 @@ func logHTTPTransaction(ctx *fasthttp.RequestCtx, latency time.Duration) {
 	}
 
 	// Add client IP if configured
-	if settings != nil && settings.LogReportIP {
+	if options != nil && options.LogReportIP {
 		ip := ctx.RemoteIP().String()
 		if len(ip) > 0 {
 			logFields = append(logFields, "ip", ip)
@@ -177,7 +177,7 @@ func logHTTPTransaction(ctx *fasthttp.RequestCtx, latency time.Duration) {
 	}
 
 	// Add host if configured
-	if settings != nil && settings.LogReportHost {
+	if options != nil && options.LogReportHost {
 		host := getString(ctx.Host())
 		if len(host) > 0 {
 			logFields = append(logFields, "host", host)
@@ -185,7 +185,7 @@ func logHTTPTransaction(ctx *fasthttp.RequestCtx, latency time.Duration) {
 	}
 
 	// Add user agent if configured
-	if settings != nil && settings.LogReportUserAgent {
+	if options != nil && options.LogReportUserAgent {
 		userAgent := getString(ctx.Request.Header.UserAgent())
 		if len(userAgent) > 0 {
 			logFields = append(logFields, "userAgent", userAgent)

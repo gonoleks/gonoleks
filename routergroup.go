@@ -11,7 +11,7 @@ type RouterGroup struct {
 
 // Group creates a new sub-group with an additional prefix
 func (r *RouterGroup) Group(path string) *RouterGroup {
-	if r.app.settings.CaseInSensitive {
+	if r.app.options.CaseInSensitive {
 		path = strings.ToLower(path)
 	}
 	return &RouterGroup{
@@ -35,7 +35,7 @@ func (r *RouterGroup) Use(middleware ...handlerFunc) *RouterGroup {
 
 // Handle registers a new request handle and middleware with the given path and custom HTTP method
 func (r *RouterGroup) Handle(httpMethod, path string, handlers ...handlerFunc) *Route {
-	if r.app.settings.CaseInSensitive {
+	if r.app.options.CaseInSensitive {
 		path = strings.ToLower(path)
 	}
 	// Only register a default handler for the group root if there are handlers to register

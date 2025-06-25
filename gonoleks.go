@@ -77,13 +77,13 @@ type gonoleks struct {
 	registeredRoutes []*Route
 	address          string
 	middlewares      handlersChain
-	settings         *Settings
+	options          *Options
 	htmlRender       HTMLRender
 	secureJsonPrefix string
 }
 
-// Settings struct holds server configuration options
-type Settings struct {
+// Options struct holds server configuration options
+type Options struct {
 	// ServerName to send in response headers
 	ServerName string // Default: "Gonoleks"
 
@@ -226,43 +226,43 @@ type Route struct {
 }
 
 // New returns a new blank instance of Gonoleks without any middleware attached
-func New(settings ...*Settings) Gonoleks {
-	if len(settings) > 0 {
-		return createInstance(settings[0])
+func New(opts ...*Options) Gonoleks {
+	if len(opts) > 0 {
+		return createInstance(opts[0])
 	}
 
-	return createInstance(&Settings{
+	return createInstance(&Options{
 		AutoRecover:           false,
 		DisableStartupMessage: true,
 		DisableLogging:        true,
 	})
 }
 
-// Default returns a new instance of Gonoleks with default settings
-func Default(settings ...*Settings) Gonoleks {
-	if len(settings) > 0 {
-		return createInstance(settings[0])
+// Default returns a new instance of Gonoleks with default options
+func Default(opts ...*Options) Gonoleks {
+	if len(opts) > 0 {
+		return createInstance(opts[0])
 	}
 
-	return createInstance(&Settings{
+	return createInstance(&Options{
 		AutoRecover: true,
 	})
 }
 
-// createInstance creates a new instance of Gonoleks with provided settings
-func createInstance(settings *Settings) Gonoleks {
+// createInstance creates a new instance of Gonoleks with provided options
+func createInstance(opts *Options) Gonoleks {
 	g := &gonoleks{
 		registeredRoutes: make([]*Route, 0),
 		middlewares:      make(handlersChain, 0),
-		settings:         settings,
+		options:          opts,
 		secureJsonPrefix: "while(1);",
 	}
 
-	g.setDefaultSettings()
-	setLoggerSettings(g.settings)
+	g.setDefaultOptions()
+	setLoggerOptions(g.options)
 
-	cacheSize := g.settings.CacheSize
-	if g.settings.DisableCaching {
+	cacheSize := g.options.CacheSize
+	if g.options.DisableCaching {
 		cacheSize = 1
 	}
 
@@ -273,8 +273,8 @@ func createInstance(settings *Settings) Gonoleks {
 	}
 
 	g.router = &router{
-		settings: g.settings,
-		cache:    cache,
+		options: g.options,
+		cache:   cache,
 		pool: sync.Pool{
 			New: func() any { return new(Context) },
 		},
@@ -285,48 +285,48 @@ func createInstance(settings *Settings) Gonoleks {
 	return g
 }
 
-// setDefaultSettings sets default values for settings
-func (g *gonoleks) setDefaultSettings() {
-	if g.settings.MaxProcs > 0 {
-		runtime.GOMAXPROCS(g.settings.MaxProcs)
+// setDefaultOptions sets default values for options
+func (g *gonoleks) setDefaultOptions() {
+	if g.options.MaxProcs > 0 {
+		runtime.GOMAXPROCS(g.options.MaxProcs)
 	} else {
 		// Use all CPU cores
 		runtime.GOMAXPROCS(runtime.NumCPU())
 	}
 
-	if g.settings.CacheSize <= 0 {
-		g.settings.CacheSize = defaultCacheSize
+	if g.options.CacheSize <= 0 {
+		g.options.CacheSize = defaultCacheSize
 	}
 
-	if g.settings.CacheMethods == "" {
-		g.settings.CacheMethods = "GET,HEAD"
+	if g.options.CacheMethods == "" {
+		g.options.CacheMethods = "GET,HEAD"
 	}
 
-	if g.settings.MaxCachedParams <= 0 {
-		g.settings.MaxCachedParams = defaultMaxCachedParams
+	if g.options.MaxCachedParams <= 0 {
+		g.options.MaxCachedParams = defaultMaxCachedParams
 	}
 
-	if g.settings.MaxCachedPathLength <= 0 {
-		g.settings.MaxCachedPathLength = defaultMaxCachedPathLength
+	if g.options.MaxCachedPathLength <= 0 {
+		g.options.MaxCachedPathLength = defaultMaxCachedPathLength
 	}
 
-	if g.settings.MaxRequestBodySize <= 0 {
-		g.settings.MaxRequestBodySize = defaultMaxRequestBodySize
+	if g.options.MaxRequestBodySize <= 0 {
+		g.options.MaxRequestBodySize = defaultMaxRequestBodySize
 	}
 
-	if g.settings.MaxRouteParams <= 0 || g.settings.MaxRouteParams > defaultMaxRouteParams {
-		g.settings.MaxRouteParams = defaultMaxRouteParams
+	if g.options.MaxRouteParams <= 0 || g.options.MaxRouteParams > defaultMaxRouteParams {
+		g.options.MaxRouteParams = defaultMaxRouteParams
 	}
 
-	if g.settings.MaxRequestURLLength <= 0 || g.settings.MaxRequestURLLength > defaultMaxRequestURLLength {
-		g.settings.MaxRequestURLLength = defaultMaxRequestURLLength
+	if g.options.MaxRequestURLLength <= 0 || g.options.MaxRequestURLLength > defaultMaxRequestURLLength {
+		g.options.MaxRequestURLLength = defaultMaxRequestURLLength
 	}
-	if g.settings.Concurrency <= 0 {
-		g.settings.Concurrency = defaultConcurrency
+	if g.options.Concurrency <= 0 {
+		g.options.Concurrency = defaultConcurrency
 	}
 
-	if g.settings.ReadBufferSize == 0 {
-		g.settings.ReadBufferSize = defaultReadBufferSize
+	if g.options.ReadBufferSize == 0 {
+		g.options.ReadBufferSize = defaultReadBufferSize
 	}
 }
 
@@ -340,15 +340,15 @@ func (g *gonoleks) Run(addr ...string) error {
 	address := resolveAddress(portStr)
 	g.setupRouter()
 
-	if g.settings.Prefork {
-		if !g.settings.DisableStartupMessage {
+	if g.options.Prefork {
+		if !g.options.DisableStartupMessage {
 			printStartupMessage(address)
 		}
 		pf := prefork.New(g.httpServer)
 		pf.Reuseport = true
 		pf.Network = "tcp4"
-		if g.settings.TLSEnabled {
-			return pf.ListenAndServeTLS(address, g.settings.TLSCertPath, g.settings.TLSKeyPath)
+		if g.options.TLSEnabled {
+			return pf.ListenAndServeTLS(address, g.options.TLSCertPath, g.options.TLSKeyPath)
 		}
 		return pf.ListenAndServe(address)
 	}
@@ -358,11 +358,11 @@ func (g *gonoleks) Run(addr ...string) error {
 		return err
 	}
 	g.address = address
-	if !g.settings.DisableStartupMessage {
+	if !g.options.DisableStartupMessage {
 		printStartupMessage(address)
 	}
-	if g.settings.TLSEnabled {
-		return g.httpServer.ServeTLS(ln, g.settings.TLSCertPath, g.settings.TLSKeyPath)
+	if g.options.TLSEnabled {
+		return g.httpServer.ServeTLS(ln, g.options.TLSCertPath, g.options.TLSKeyPath)
 	}
 	return g.httpServer.Serve(ln)
 }
@@ -370,33 +370,33 @@ func (g *gonoleks) Run(addr ...string) error {
 // newHTTPServer creates and configures a new fasthttp server instance
 func (g *gonoleks) newHTTPServer() *fasthttp.Server {
 	serverName := "Gonoleks"
-	if g.settings.ServerName != "" {
-		serverName = g.settings.ServerName
+	if g.options.ServerName != "" {
+		serverName = g.options.ServerName
 	}
 
 	return &fasthttp.Server{
 		Name:                          serverName,
 		Handler:                       g.router.Handler,
-		Concurrency:                   g.settings.Concurrency,
-		DisableKeepalive:              g.settings.DisableKeepalive,
-		ReadBufferSize:                g.settings.ReadBufferSize,
-		WriteBufferSize:               g.settings.ReadBufferSize,
-		ReadTimeout:                   g.settings.ReadTimeout,
-		WriteTimeout:                  g.settings.WriteTimeout,
-		IdleTimeout:                   g.settings.IdleTimeout,
-		MaxRequestBodySize:            g.settings.MaxRequestBodySize,
-		DisableHeaderNamesNormalizing: g.settings.DisableHeaderNamesNormalizing,
-		GetOnly:                       g.settings.GetOnly,
-		ReduceMemoryUsage:             g.settings.ReduceMemoryUsage,
+		Concurrency:                   g.options.Concurrency,
+		DisableKeepalive:              g.options.DisableKeepalive,
+		ReadBufferSize:                g.options.ReadBufferSize,
+		WriteBufferSize:               g.options.ReadBufferSize,
+		ReadTimeout:                   g.options.ReadTimeout,
+		WriteTimeout:                  g.options.WriteTimeout,
+		IdleTimeout:                   g.options.IdleTimeout,
+		MaxRequestBodySize:            g.options.MaxRequestBodySize,
+		DisableHeaderNamesNormalizing: g.options.DisableHeaderNamesNormalizing,
+		GetOnly:                       g.options.GetOnly,
+		ReduceMemoryUsage:             g.options.ReduceMemoryUsage,
 		NoDefaultServerHeader:         true,
-		NoDefaultDate:                 g.settings.DisableDefaultDate,
-		NoDefaultContentType:          g.settings.DisableDefaultContentType,
+		NoDefaultDate:                 g.options.DisableDefaultDate,
+		NoDefaultContentType:          g.options.DisableDefaultContentType,
 	}
 }
 
 // registerRoute adds a new route with the specified method, path, and handlers
 func (g *gonoleks) registerRoute(method, path string, handlers handlersChain) *Route {
-	if g.settings.CaseInSensitive {
+	if g.options.CaseInSensitive {
 		path = strings.ToLower(path)
 	}
 	route := &Route{Path: path, Method: method, Handlers: handlers}
@@ -425,7 +425,7 @@ func (g *gonoleks) Shutdown() error {
 
 // Group creates a new router group with the specified path prefix
 func (g *gonoleks) Group(prefix string) *RouterGroup {
-	if g.settings.CaseInSensitive {
+	if g.options.CaseInSensitive {
 		prefix = strings.ToLower(prefix)
 	}
 
@@ -439,7 +439,7 @@ func (g *gonoleks) Group(prefix string) *RouterGroup {
 
 // Static serves static files from the specified root directory under the given URL prefix
 func (g *gonoleks) Static(path, root string) {
-	if g.settings.CaseInSensitive {
+	if g.options.CaseInSensitive {
 		path = strings.ToLower(path)
 	}
 
@@ -495,7 +495,7 @@ func (g *gonoleks) Static(path, root string) {
 // StaticFile registers a single route in order to serve a single file of the local filesystem
 // Example: app.StaticFile("favicon.ico", "./resources/favicon.ico")
 func (g *gonoleks) StaticFile(path, filepath string) {
-	if g.settings.CaseInSensitive {
+	if g.options.CaseInSensitive {
 		path = strings.ToLower(path)
 	}
 

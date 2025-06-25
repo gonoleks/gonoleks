@@ -12,9 +12,9 @@ import (
 func createTestRouter() *router {
 	cache, _ := lru.New[string, any](10)
 	return &router{
-		trees:    make(map[string]*node),
-		cache:    cache,
-		settings: &Settings{MaxRequestURLLength: 2048},
+		trees:   make(map[string]*node),
+		cache:   cache,
+		options: &Options{MaxRequestURLLength: 2048},
 		pool: sync.Pool{
 			New: func() any { return new(Context) },
 		},
@@ -160,13 +160,13 @@ func TestRouterHandleCache(t *testing.T) {
 	assert.True(t, r.handleCache(MethodGet, "/test", ctx), "Second request should be from cache")
 
 	// Test with disabled caching
-	r.settings.DisableCaching = true
+	r.options.DisableCaching = true
 	r.releaseCtx(ctx)
 	ctx = r.acquireCtx(fctx)
 	assert.False(t, r.handleCache(MethodGet, "/test", ctx), "Request should not be cached when caching is disabled")
 
 	// Test with non-cacheable method
-	r.settings.DisableCaching = false
+	r.options.DisableCaching = false
 	r.releaseCtx(ctx)
 	ctx = r.acquireCtx(fctx)
 	assert.False(t, r.handleCache(MethodTrace, "/test", ctx), "TRACE method should not be cached")
@@ -295,9 +295,9 @@ func TestRouterHandler(t *testing.T) {
 	r := createTestRouter()
 
 	// Enable all handler options
-	r.settings.HandleOPTIONS = true
-	r.settings.HandleMethodNotAllowed = true
-	r.settings.AutoRecover = true
+	r.options.HandleOPTIONS = true
+	r.options.HandleMethodNotAllowed = true
+	r.options.AutoRecover = true
 
 	// Register routes
 	handlerCalled := false
@@ -329,7 +329,7 @@ func TestRouterHandler(t *testing.T) {
 	assert.Equal(t, StatusMethodNotAllowed, fctx.Response.StatusCode(), "Status code should be 405")
 
 	// Test case insensitive routing
-	r.settings.CaseInSensitive = true
+	r.options.CaseInSensitive = true
 	r.handle(MethodGet, "/case", handlersChain{func(c *Context) {
 		c.Status(StatusOK)
 	}})
@@ -348,7 +348,7 @@ func TestRouterRecoverFromPanic(t *testing.T) {
 	}})
 
 	// Enable auto recovery
-	r.settings.AutoRecover = true
+	r.options.AutoRecover = true
 
 	// Test handling a request that causes a panic
 	fctx := createTestRequestCtx(MethodGet, "/panic")
@@ -362,9 +362,9 @@ func TestRouterRecoverFromPanic(t *testing.T) {
 func TestRouterWithCaching(t *testing.T) {
 	cache, _ := lru.New[string, any](10)
 	r := &router{
-		trees:    make(map[string]*node),
-		cache:    cache,
-		settings: &Settings{MaxRequestURLLength: 2048},
+		trees:   make(map[string]*node),
+		cache:   cache,
+		options: &Options{MaxRequestURLLength: 2048},
 		pool: sync.Pool{
 			New: func() any { return new(Context) },
 		},
@@ -388,7 +388,7 @@ func TestRouterWithCaching(t *testing.T) {
 	assert.Equal(t, 2, handlerCallCount, "Handler should be called twice")
 
 	// Disable caching
-	r.settings.DisableCaching = true
+	r.options.DisableCaching = true
 
 	// Third request should not be served from cache
 	fctx3 := createTestRequestCtx(MethodGet, "/cached")
@@ -454,7 +454,7 @@ func TestRouterWithLogging(t *testing.T) {
 	r := createTestRouter()
 
 	// Enable logging
-	r.settings.DisableLogging = false
+	r.options.DisableLogging = false
 
 	// Register a route
 	r.handle(MethodGet, "/log", handlersChain{func(c *Context) {
@@ -471,7 +471,7 @@ func TestRouterWithLogging(t *testing.T) {
 	}, "Handler with logging should not panic")
 
 	// Disable logging
-	r.settings.DisableLogging = true
+	r.options.DisableLogging = true
 
 	// Test handling a request with logging disabled
 	fctx = createTestRequestCtx(MethodGet, "/log")

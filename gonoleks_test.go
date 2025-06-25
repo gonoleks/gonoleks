@@ -16,23 +16,23 @@ import (
 )
 
 func TestDefault(t *testing.T) {
-	// Test with default settings
+	// Test with default options
 	app := Default()
 	assert.NotNil(t, app, "Default() should return a non-nil instance")
 
-	// Access the internal gonoleks struct to verify default settings were applied
+	// Access the internal gonoleks struct to verify default options were applied
 	appImpl := app.(*gonoleks)
-	assert.Equal(t, "Gonoleks", appImpl.httpServer.Name, "ServerName setting should be applied")
-	assert.Equal(t, defaultConcurrency, appImpl.httpServer.Concurrency, "Concurrency setting should be applied")
-	assert.Equal(t, defaultReadBufferSize, appImpl.httpServer.ReadBufferSize, "ReadBufferSize setting should be applied")
+	assert.Equal(t, "Gonoleks", appImpl.httpServer.Name, "ServerName option should be applied")
+	assert.Equal(t, defaultConcurrency, appImpl.httpServer.Concurrency, "Concurrency option should be applied")
+	assert.Equal(t, defaultReadBufferSize, appImpl.httpServer.ReadBufferSize, "ReadBufferSize option should be applied")
 }
 
 func TestNew(t *testing.T) {
-	// Test with custom settings
+	// Test with custom options
 	app := New()
 	assert.NotNil(t, app, "New() should return a non-nil instance")
 
-	customSettings := &Settings{
+	customOptions := &Options{
 		ServerName:      "Test",
 		MaxProcs:        4,
 		CacheSize:       2000,
@@ -42,14 +42,14 @@ func TestNew(t *testing.T) {
 		CaseInSensitive: true,
 	}
 
-	app = New(customSettings)
-	assert.NotNil(t, app, "New() with custom settings should return a non-nil instance")
+	app = New(customOptions)
+	assert.NotNil(t, app, "New() with custom options should return a non-nil instance")
 
-	// Access the internal gonoleks struct to verify settings were applied
+	// Access the internal gonoleks struct to verify options were applied
 	appImpl := app.(*gonoleks)
-	assert.Equal(t, "Test", appImpl.httpServer.Name, "ServerName setting should be applied")
-	assert.Equal(t, 1024, appImpl.httpServer.Concurrency, "Concurrency setting should be applied")
-	assert.Equal(t, 8192, appImpl.httpServer.ReadBufferSize, "ReadBufferSize setting should be applied")
+	assert.Equal(t, "Test", appImpl.httpServer.Name, "ServerName option should be applied")
+	assert.Equal(t, 1024, appImpl.httpServer.Concurrency, "Concurrency option should be applied")
+	assert.Equal(t, 8192, appImpl.httpServer.ReadBufferSize, "ReadBufferSize option should be applied")
 }
 
 func TestRouteRegistration(t *testing.T) {
@@ -210,10 +210,10 @@ func TestMiddleware(t *testing.T) {
 }
 
 func TestCaseInsensitiveRouting(t *testing.T) {
-	settings := &Settings{
+	options := &Options{
 		CaseInSensitive: true,
 	}
-	app := New(settings)
+	app := New(options)
 
 	// Register a route with mixed case
 	route := app.GET("/UsEr/PrOfIlE", func(c *Context) {})
@@ -268,7 +268,7 @@ func TestRunAndShutdown(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	app := New(&Settings{
+	app := New(&Options{
 		DisableStartupMessage: true, // Suppress log output during tests
 	})
 
@@ -352,17 +352,17 @@ func TestHTMLRendering(t *testing.T) {
 	assert.NotNil(t, appImpl.htmlRender, "HTML renderer should be created")
 }
 
-func TestDefaultSettings(t *testing.T) {
+func TestDefaultOptions(t *testing.T) {
 	app := Default()
 	appImpl := app.(*gonoleks)
 
-	// Verify default settings
-	assert.Equal(t, defaultCacheSize, appImpl.settings.CacheSize, "Default CacheSize should be applied")
-	assert.Equal(t, defaultMaxRequestBodySize, appImpl.settings.MaxRequestBodySize, "Default MaxRequestBodySize should be applied")
-	assert.Equal(t, defaultMaxRouteParams, appImpl.settings.MaxRouteParams, "Default MaxRouteParams should be applied")
-	assert.Equal(t, defaultMaxRequestURLLength, appImpl.settings.MaxRequestURLLength, "Default MaxRequestURLLength should be applied")
-	assert.Equal(t, defaultConcurrency, appImpl.settings.Concurrency, "Default Concurrency should be applied")
-	assert.Equal(t, defaultReadBufferSize, appImpl.settings.ReadBufferSize, "Default ReadBufferSize should be applied")
+	// Verify default options
+	assert.Equal(t, defaultCacheSize, appImpl.options.CacheSize, "Default CacheSize should be applied")
+	assert.Equal(t, defaultMaxRequestBodySize, appImpl.options.MaxRequestBodySize, "Default MaxRequestBodySize should be applied")
+	assert.Equal(t, defaultMaxRouteParams, appImpl.options.MaxRouteParams, "Default MaxRouteParams should be applied")
+	assert.Equal(t, defaultMaxRequestURLLength, appImpl.options.MaxRequestURLLength, "Default MaxRequestURLLength should be applied")
+	assert.Equal(t, defaultConcurrency, appImpl.options.Concurrency, "Default Concurrency should be applied")
+	assert.Equal(t, defaultReadBufferSize, appImpl.options.ReadBufferSize, "Default ReadBufferSize should be applied")
 }
 
 func TestHandleMethod(t *testing.T) {
