@@ -566,11 +566,6 @@ func (g *gonoleks) Delims(left, right string) {
 	g.htmlRender.(*TemplateEngine).SetDelims(left, right)
 }
 
-// GET registers a route for the HTTP GET method
-func (g *gonoleks) GET(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodGet, path, handlers)
-}
-
 // Handle registers a new request handle and middleware with the given path and custom HTTP method
 // The last handler should be the real handler, the other ones should be middleware
 func (g *gonoleks) Handle(httpMethod, path string, handlers ...handlerFunc) *Route {
@@ -597,19 +592,7 @@ func (g *gonoleks) Handle(httpMethod, path string, handlers ...handlerFunc) *Rou
 // Any registers a route that matches all the HTTP methods
 // GET, POST, PUT, PATCH, HEAD, OPTIONS, DELETE, CONNECT, TRACE
 func (g *gonoleks) Any(path string, handlers ...handlerFunc) []*Route {
-	methods := []string{
-		MethodGet,
-		MethodPost,
-		MethodPut,
-		MethodPatch,
-		MethodHead,
-		MethodOptions,
-		MethodDelete,
-		MethodConnect,
-		MethodTrace,
-	}
-
-	return g.Match(methods, path, handlers...)
+	return g.Match(AllHTTPMethods, path, handlers...)
 }
 
 // Match registers a route that matches the specified methods that you declared
@@ -621,6 +604,11 @@ func (g *gonoleks) Match(methods []string, path string, handlers ...handlerFunc)
 	}
 
 	return routes
+}
+
+// GET registers a route for the HTTP GET method
+func (g *gonoleks) GET(path string, handlers ...handlerFunc) *Route {
+	return g.registerRoute(MethodGet, path, handlers)
 }
 
 // HEAD registers a route for the HTTP HEAD method
