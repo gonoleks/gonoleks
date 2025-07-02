@@ -249,7 +249,7 @@ const (
 	HeaderAccessControlRequestPrivateNetwork = "Access-Control-Request-Private-Network"
 )
 
-// AllHTTPMethods lists all stabdard HTTP methods
+// AllHTTPMethods lists all standard HTTP methods
 // Used by app.Any to register a handler for any HTTP method
 var AllHTTPMethods = []string{
 	MethodGet,

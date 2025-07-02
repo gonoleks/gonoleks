@@ -46,7 +46,7 @@ lint:
 test:
 	go run gotest.tools/gotestsum@latest -f testname -- ./... -race -count=1 -shuffle=on
 
-## longtest: Execute all tests 10x
+## longtest: Execute all tests 15x
 .PHONY: longtest
 longtest:
 	go run gotest.tools/gotestsum@latest -f testname -- ./... -race -count=15 -shuffle=on
