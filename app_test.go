@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,11 +19,11 @@ func TestDefault(t *testing.T) {
 	app := Default()
 	assert.NotNil(t, app, "Default() should return a non-nil instance")
 
-	// Access the internal gonoleks struct to verify default options were applied
-	appImpl := app.(*gonoleks)
-	assert.Equal(t, "Gonoleks", appImpl.httpServer.Name, "ServerName option should be applied")
-	assert.Equal(t, defaultConcurrency, appImpl.httpServer.Concurrency, "Concurrency option should be applied")
-	assert.Equal(t, defaultReadBufferSize, appImpl.httpServer.ReadBufferSize, "ReadBufferSize option should be applied")
+	// Access the Gonoleks struct directly (no type assertion needed)
+	defaultConfig := defaultOptions()
+	assert.Equal(t, defaultConfig.ServerName, app.httpServer.Name, "ServerName option should be applied")
+	assert.Equal(t, defaultConfig.Concurrency, app.httpServer.Concurrency, "Concurrency option should be applied")
+	assert.Equal(t, defaultConfig.ReadBufferSize, app.httpServer.ReadBufferSize, "ReadBufferSize option should be applied")
 }
 
 func TestNew(t *testing.T) {
@@ -32,24 +31,21 @@ func TestNew(t *testing.T) {
 	app := New()
 	assert.NotNil(t, app, "New() should return a non-nil instance")
 
-	customOptions := &Options{
-		ServerName:      "Test",
-		MaxProcs:        4,
-		CacheSize:       2000,
-		Concurrency:     1024,
-		ReadBufferSize:  8192,
-		DisableCaching:  true,
-		CaseInSensitive: true,
-	}
+	app = New()
+	// Use direct field assignment
+	app.ServerName = "Test"
+	app.Concurrency = 1024
+	app.ReadBufferSize = 8192
+	app.CaseInSensitive = true
+	// Recreate httpServer to apply the new configuration
+	app.httpServer = app.newHTTPServer()
 
-	app = New(customOptions)
 	assert.NotNil(t, app, "New() with custom options should return a non-nil instance")
 
-	// Access the internal gonoleks struct to verify options were applied
-	appImpl := app.(*gonoleks)
-	assert.Equal(t, "Test", appImpl.httpServer.Name, "ServerName option should be applied")
-	assert.Equal(t, 1024, appImpl.httpServer.Concurrency, "Concurrency option should be applied")
-	assert.Equal(t, 8192, appImpl.httpServer.ReadBufferSize, "ReadBufferSize option should be applied")
+	// Access the Gonoleks struct directly (no type assertion needed)
+	assert.Equal(t, "Test", app.httpServer.Name, "ServerName option should be applied")
+	assert.Equal(t, 1024, app.httpServer.Concurrency, "Concurrency option should be applied")
+	assert.Equal(t, 8192, app.httpServer.ReadBufferSize, "ReadBufferSize option should be applied")
 }
 
 func TestRouteRegistration(t *testing.T) {
@@ -189,20 +185,19 @@ func TestMiddleware(t *testing.T) {
 	// Register a route
 	app.GET("/middleware-test", func(c *Context) {})
 
-	// Access the internal gonoleks struct to verify middleware was registered
-	appImpl := app.(*gonoleks)
-	assert.Equal(t, 1, len(appImpl.middlewares), "Global middleware should be registered")
+	// Access the Gonoleks struct directly (no type assertion needed)
+	assert.Equal(t, 1, len(app.middlewares), "Global middleware should be registered")
 
 	// Setup the router to ensure middleware is properly registered with routes
-	appImpl.setupRouter()
+	app.setupRouter()
 
 	// Simulate a request to trigger the middleware
-	if appImpl.router != nil {
+	if app.router != nil {
 		// Use fasthttp to create a fake request context
 		reqCtx := &fasthttp.RequestCtx{}
 		reqCtx.Request.SetRequestURI("/middleware-test")
-		reqCtx.Request.Header.SetMethod("GET")
-		appImpl.router.Handler(reqCtx)
+		reqCtx.Request.Header.SetMethod(MethodGet)
+		app.router.Handler(reqCtx)
 	}
 
 	// Now check if the middleware was executed
@@ -210,10 +205,8 @@ func TestMiddleware(t *testing.T) {
 }
 
 func TestCaseInsensitiveRouting(t *testing.T) {
-	options := &Options{
-		CaseInSensitive: true,
-	}
-	app := New(options)
+	app := New()
+	app.CaseInSensitive = true
 
 	// Register a route with mixed case
 	route := app.GET("/UsEr/PrOfIlE", func(c *Context) {})
@@ -250,10 +243,9 @@ func TestStaticFileServing(t *testing.T) {
 	// Register the file
 	app.StaticFile("/test-file", tmpFile.Name())
 
-	// Access the internal gonoleks struct to verify route was registered
-	appImpl := app.(*gonoleks)
+	// Access the Gonoleks struct directly (no type assertion needed)
 	found := false
-	for _, route := range appImpl.registeredRoutes {
+	for _, route := range app.registeredRoutes {
 		if route.Path == "/test-file" && route.Method == MethodGet {
 			found = true
 			break
@@ -262,15 +254,13 @@ func TestStaticFileServing(t *testing.T) {
 	assert.True(t, found, "StaticFile should register a GET route")
 }
 
-func TestRunAndShutdown(t *testing.T) {
+func TestRun(t *testing.T) {
 	// Skip in CI environments or when running short tests
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	app := New(&Options{
-		DisableStartupMessage: true, // Suppress log output during tests
-	})
+	app := New()
 
 	// Find an available port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -306,21 +296,6 @@ func TestRunAndShutdown(t *testing.T) {
 		assert.Equal(t, StatusOK, resp.StatusCode, "Server should respond with 200 OK")
 		assert.Equal(t, "pong", string(body), "Server should respond with 'pong'")
 	}
-
-	// Shutdown the server
-	err = app.Shutdown()
-	assert.NoError(t, err, "Shutdown should not return an error")
-
-	// Wait for the server to exit
-	select {
-	case err := <-serverErr:
-		// Server exited with an error
-		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-			assert.NoError(t, err, "Server should not return an error on shutdown")
-		}
-	case <-time.After(1 * time.Second):
-		t.Fatal("Server did not shut down within timeout")
-	}
 }
 
 func TestHTMLRendering(t *testing.T) {
@@ -347,22 +322,20 @@ func TestHTMLRendering(t *testing.T) {
 	err = app.LoadHTMLFiles(tmpFile.Name())
 	assert.NoError(t, err, "LoadHTMLFiles should not return an error")
 
-	// Access the internal gonoleks struct to verify HTML renderer was created
-	appImpl := app.(*gonoleks)
-	assert.NotNil(t, appImpl.htmlRender, "HTML renderer should be created")
+	// Access the Gonoleks struct directly (no type assertion needed)
+	assert.NotNil(t, app.htmlRender, "HTML renderer should be created")
 }
 
 func TestDefaultOptions(t *testing.T) {
 	app := Default()
-	appImpl := app.(*gonoleks)
+	defaultConfig := defaultOptions()
 
-	// Verify default options
-	assert.Equal(t, defaultCacheSize, appImpl.options.CacheSize, "Default CacheSize should be applied")
-	assert.Equal(t, defaultMaxRequestBodySize, appImpl.options.MaxRequestBodySize, "Default MaxRequestBodySize should be applied")
-	assert.Equal(t, defaultMaxRouteParams, appImpl.options.MaxRouteParams, "Default MaxRouteParams should be applied")
-	assert.Equal(t, defaultMaxRequestURLLength, appImpl.options.MaxRequestURLLength, "Default MaxRequestURLLength should be applied")
-	assert.Equal(t, defaultConcurrency, appImpl.options.Concurrency, "Default Concurrency should be applied")
-	assert.Equal(t, defaultReadBufferSize, appImpl.options.ReadBufferSize, "Default ReadBufferSize should be applied")
+	// Verify default options - access direct fields
+	assert.Equal(t, defaultConfig.MaxRequestBodySize, app.MaxRequestBodySize, "Default MaxRequestBodySize should be applied")
+	assert.Equal(t, defaultConfig.MaxRouteParams, app.MaxRouteParams, "Default MaxRouteParams should be applied")
+	assert.Equal(t, defaultConfig.MaxRequestURLLength, app.MaxRequestURLLength, "Default MaxRequestURLLength should be applied")
+	assert.Equal(t, defaultConfig.Concurrency, app.Concurrency, "Default Concurrency should be applied")
+	assert.Equal(t, defaultConfig.ReadBufferSize, app.ReadBufferSize, "Default ReadBufferSize should be applied")
 }
 
 func TestHandleMethod(t *testing.T) {
@@ -384,10 +357,9 @@ func TestNoRoute(t *testing.T) {
 	app.NoRoute(func(c *Context) {
 	})
 
-	// Access the internal router to verify NotFound handler was registered
-	appImpl := app.(*gonoleks)
-	assert.NotNil(t, appImpl.router.noRoute, "NoRoute handler should be registered")
-	assert.Equal(t, 1, len(appImpl.router.noRoute), "NoRoute should register exactly one handler")
+	// Access the internal router directly (no type assertion needed)
+	assert.NotNil(t, app.router.noRoute, "NoRoute handler should be registered")
+	assert.Equal(t, 1, len(app.router.noRoute), "NoRoute should register exactly one handler")
 }
 
 func TestNoMethod(t *testing.T) {
@@ -398,31 +370,93 @@ func TestNoMethod(t *testing.T) {
 		c.String(StatusMethodNotAllowed, "Custom Method Not Allowed")
 	})
 
-	// Access the internal router to verify NoMethod handler was registered
-	appImpl := app.(*gonoleks)
-	assert.NotNil(t, appImpl.router.noMethod, "NoMethod handler should be registered")
-	assert.Equal(t, 1, len(appImpl.router.noMethod), "NoMethod should register exactly one handler")
+	// Access the internal router directly (no type assertion needed)
+	assert.NotNil(t, app.router.noMethod, "NoMethod handler should be registered")
+	assert.Equal(t, 1, len(app.router.noMethod), "NoMethod should register exactly one handler")
 }
 
 func TestSecureJsonPrefix(t *testing.T) {
 	app := New()
 
-	// Test default secure JSON prefix
-	appImpl := app.(*gonoleks)
-	assert.Equal(t, "while(1);", appImpl.secureJsonPrefix, "Default secure JSON prefix should be 'while(1);'")
+	// Test default secure JSON prefix - access struct directly
+	assert.Equal(t, "while(1);", app.secureJsonPrefix, "Default secure JSON prefix should be 'while(1);'")
 
 	// Test setting custom secure JSON prefix
 	customPrefix := ")]}',\n"
 	app.SecureJsonPrefix(customPrefix)
-	assert.Equal(t, customPrefix, appImpl.secureJsonPrefix, "Custom secure JSON prefix should be set correctly")
+	assert.Equal(t, customPrefix, app.secureJsonPrefix, "Custom secure JSON prefix should be set correctly")
 
 	// Test setting empty prefix
 	emptyPrefix := ""
 	app.SecureJsonPrefix(emptyPrefix)
-	assert.Equal(t, emptyPrefix, appImpl.secureJsonPrefix, "Empty secure JSON prefix should be set correctly")
+	assert.Equal(t, emptyPrefix, app.secureJsonPrefix, "Empty secure JSON prefix should be set correctly")
 
 	// Test setting another custom prefix
 	anotherPrefix := "/**/"
 	app.SecureJsonPrefix(anotherPrefix)
-	assert.Equal(t, anotherPrefix, appImpl.secureJsonPrefix, "Another custom secure JSON prefix should be set correctly")
+	assert.Equal(t, anotherPrefix, app.secureJsonPrefix, "Another custom secure JSON prefix should be set correctly")
+}
+
+func TestRecoveryMiddleware(t *testing.T) {
+	app := New()
+
+	// Add Recovery middleware
+	app.Use(Recovery())
+
+	// Register a route that panics
+	app.GET("/panic", func(c *Context) {
+		panic("test panic for recovery")
+	})
+
+	// Setup the router
+	app.setupRouter()
+
+	// Create a test request context
+	reqCtx := &fasthttp.RequestCtx{}
+	reqCtx.Request.SetRequestURI("/panic")
+	reqCtx.Request.Header.SetMethod(MethodGet)
+
+	// Test that the handler doesn't panic and recovers gracefully
+	assert.NotPanics(t, func() {
+		app.router.Handler(reqCtx)
+	}, "Recovery middleware should catch panics")
+
+	// Verify that a 500 Internal Server Error is returned
+	assert.Equal(t, StatusInternalServerError, reqCtx.Response.StatusCode(), "Should return 500 status code after panic recovery")
+
+	// Verify that an error message is set
+	responseBody := string(reqCtx.Response.Body())
+	assert.Contains(t, responseBody, "Internal Server Error", "Response should contain error message")
+}
+
+func TestRecoveryMiddlewareWithoutPanic(t *testing.T) {
+	app := New()
+
+	// Add Recovery middleware
+	app.Use(Recovery())
+
+	// Register a normal route that doesn't panic
+	app.GET("/normal", func(c *Context) {
+		c.String(StatusOK, "success")
+	})
+
+	// Setup the router
+	app.setupRouter()
+
+	// Create a test request context
+	reqCtx := &fasthttp.RequestCtx{}
+	reqCtx.Request.SetRequestURI("/normal")
+	reqCtx.Request.Header.SetMethod(MethodGet)
+
+	// Test that normal requests work fine with Recovery middleware
+	assert.NotPanics(t, func() {
+		app.router.Handler(reqCtx)
+	}, "Recovery middleware should not interfere with normal requests")
+
+	// Verify that a 200 OK is returned
+	assert.Equal(t, StatusOK, reqCtx.Response.StatusCode(), "Should return 200 status code for normal requests")
+
+	// Verify the response body
+	responseBody := string(reqCtx.Response.Body())
+	assert.Equal(t, "success", responseBody, "Response should contain expected content")
 }

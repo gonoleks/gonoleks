@@ -21,11 +21,10 @@ type Render interface {
 
 // TemplateEngine implements HTMLRender using Jet template engine
 type TemplateEngine struct {
-	set           *jet.Set
-	delims        [2]string
-	funcMap       map[string]any
-	templateCache sync.Map
-	mu            sync.RWMutex
+	set     *jet.Set
+	delims  [2]string
+	funcMap map[string]any
+	mu      sync.RWMutex
 }
 
 // jetRender implements Render interface for Jet templates
@@ -36,7 +35,7 @@ type jetRender struct {
 
 // Pool for VarMap reuse to reduce allocations
 var varMapPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return make(jet.VarMap)
 	},
 }
@@ -119,9 +118,6 @@ func (e *TemplateEngine) LoadFiles(files ...string) error {
 	// Add functions to the set
 	e.addFunctionsToSet()
 
-	// Clear template cache when reloading
-	e.templateCache = sync.Map{}
-
 	return nil
 }
 
@@ -139,8 +135,6 @@ func (e *TemplateEngine) recreateSet() {
 	if e.set == nil {
 		return
 	}
-	// Clear cache when recreating
-	e.templateCache = sync.Map{}
 }
 
 // addFunctionsToSet adds custom functions to the Jet set
@@ -168,16 +162,6 @@ func (e *TemplateEngine) Instance(name string, data any) Render {
 		}
 	}
 
-	// Check cache first for instant access
-	if cached, ok := e.templateCache.Load(name); ok {
-		if template, ok := cached.(*jet.Template); ok {
-			return &jetRender{
-				template: template,
-				data:     data,
-			}
-		}
-	}
-
 	// Get template from Jet set
 	template, err := set.GetTemplate(name)
 	if err != nil {
@@ -186,9 +170,6 @@ func (e *TemplateEngine) Instance(name string, data any) Render {
 			data:     data,
 		}
 	}
-
-	// Cache for future requests
-	e.templateCache.Store(name, template)
 
 	return &jetRender{
 		template: template,
@@ -206,9 +187,7 @@ func (r *jetRender) Render(w io.Writer) error {
 	vars := varMapPool.Get().(jet.VarMap)
 	defer func() {
 		// Clear and return to pool
-		for k := range vars {
-			delete(vars, k)
-		}
+		clear(vars)
 		varMapPool.Put(vars)
 	}()
 

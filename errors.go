@@ -6,7 +6,6 @@ import "errors"
 const (
 	ErrEmptyPortFormat            = "Empty port format, using default port %s"
 	ErrInvalidPortFormat          = "Invalid port format, using default port %s"
-	ErrCacheCreationFailed        = "Cache creation failed"
 	ErrRecoveredFromError         = "Recovered from error"
 	ErrFormParsingFailed          = "Form parsing failed"
 	ErrMultipartFormParsingFailed = "Multipart form parsing failed"

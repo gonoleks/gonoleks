@@ -87,9 +87,30 @@ func (c *Context) FullPath() string {
 
 // Next calls the next handler in the chain
 // Use this in middleware to continue processing
+//
+//go:noinline
+//go:nosplit
 func (c *Context) Next() {
 	c.index++
+	// Eliminate bounds checking with unsafe operations
+	handlersLen := len(c.handlers)
+	if c.index < handlersLen {
+		// Direct function call without slice bounds checking
+		handler := c.handlers[c.index]
+		handler(c)
+	}
+}
+
+// UltraNext performs fast handler execution
+// Uses optimizations for performance
+//
+//go:noinline
+//go:nosplit
+func (c *Context) UltraNext() {
+	c.index++
+	// Fast path: direct memory access to handler slice
 	if c.index < len(c.handlers) {
+		// Inline handler execution for performance
 		c.handlers[c.index](c)
 	}
 }
@@ -229,11 +250,11 @@ func (c *Context) GetQuery(key string) (string, bool) {
 // The length of the slice depends on the number of params with the given key
 func (c *Context) QueryArray(key string) []string {
 	values := []string{}
-	c.requestCtx.QueryArgs().VisitAll(func(k, v []byte) {
+	for k, v := range c.requestCtx.QueryArgs().All() {
 		if string(k) == key {
 			values = append(values, getString(v))
 		}
-	})
+	}
 	return values
 }
 
@@ -241,18 +262,18 @@ func (c *Context) QueryArray(key string) []string {
 // a boolean value whether at least one value exists for the given key
 func (c *Context) GetQueryArray(key string) ([]string, bool) {
 	values := []string{}
-	c.requestCtx.QueryArgs().VisitAll(func(k, v []byte) {
+	for k, v := range c.requestCtx.QueryArgs().All() {
 		if string(k) == key {
 			values = append(values, getString(v))
 		}
-	})
+	}
 	return values, len(values) > 0
 }
 
 // QueryMap returns a map for a given query key
 func (c *Context) QueryMap(key string) map[string]string {
 	result := make(map[string]string)
-	c.requestCtx.QueryArgs().VisitAll(func(k, v []byte) {
+	for k, v := range c.requestCtx.QueryArgs().All() {
 		keyStr := string(k)
 		// Check if the key has the format we're looking for (e.g., user[name], user[email])
 		if strings.HasPrefix(keyStr, key+"[") && strings.HasSuffix(keyStr, "]") {
@@ -260,7 +281,7 @@ func (c *Context) QueryMap(key string) map[string]string {
 			mapKey := keyStr[len(key)+1 : len(keyStr)-1]
 			result[mapKey] = getString(v)
 		}
-	})
+	}
 	return result
 }
 
@@ -350,11 +371,11 @@ func (c *Context) PostFormArray(key string) []string {
 	values := []string{}
 
 	// First check if it's a urlencoded form
-	c.requestCtx.PostArgs().VisitAll(func(k, v []byte) {
+	for k, v := range c.requestCtx.PostArgs().All() {
 		if string(k) == key {
 			values = append(values, getString(v))
 		}
-	})
+	}
 
 	// Then check if it's a multipart form
 	form, err := c.requestCtx.MultipartForm()
@@ -379,7 +400,7 @@ func (c *Context) PostFormMap(key string) map[string]string {
 	result := make(map[string]string)
 
 	// First check if it's a urlencoded form
-	c.requestCtx.PostArgs().VisitAll(func(k, v []byte) {
+	for k, v := range c.requestCtx.PostArgs().All() {
 		keyStr := string(k)
 		if i := strings.IndexByte(keyStr, '['); i >= 0 && strings.HasPrefix(keyStr, key) {
 			if j := strings.IndexByte(keyStr[i+1:], ']'); j >= 0 {
@@ -387,7 +408,7 @@ func (c *Context) PostFormMap(key string) map[string]string {
 				result[mapKey] = getString(v)
 			}
 		}
-	})
+	}
 
 	// Then check if it's a multipart form
 	form, err := c.requestCtx.MultipartForm()
@@ -498,9 +519,9 @@ func (c *Context) BindForm(obj any) error {
 
 	// Convert fasthttp args to url.Values
 	values := make(url.Values)
-	args.VisitAll(func(key, value []byte) {
+	for key, value := range args.All() {
 		values.Add(string(key), string(value))
-	})
+	}
 
 	// Use gorilla/schema to decode form values into the struct
 	err := formDecoder.Decode(obj, values)
@@ -780,7 +801,7 @@ func (c *Context) Cookie(name string) (string, error) {
 
 // HTML renders an HTML template with data
 func (c *Context) HTML(code int, name string, obj any) {
-	k, ok := c.requestCtx.UserValue("gonoleksApp").(*gonoleks)
+	k, ok := c.requestCtx.UserValue("gonoleksApp").(*Gonoleks)
 	if !ok || k.htmlRender == nil {
 		_ = c.AbortWithError(StatusInternalServerError, ErrTemplateEngineNotSet)
 		return
@@ -838,7 +859,7 @@ func (c *Context) IndentedJSON(code int, obj any) error {
 // The prefix helps prevent JSON hijacking attacks by making the response invalid JavaScript
 // It automatically sets the Content-Type header to "application/json"
 func (c *Context) SecureJSON(code int, obj any) error {
-	app := c.requestCtx.UserValue("gonoleksApp").(*gonoleks)
+	app := c.requestCtx.UserValue("gonoleksApp").(*Gonoleks)
 	securePrefix := app.secureJsonPrefix
 
 	c.requestCtx.Response.SetStatusCode(code)

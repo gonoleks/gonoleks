@@ -10,16 +10,33 @@ import (
 )
 
 func TestResolveAddress(t *testing.T) {
+	// IPv6 tests (default behavior)
 	// Valid port with colon
-	assert.Equal(t, globalIpv4Addr+":5678", resolveAddress(":5678"))
+	assert.Equal(t, globalIpv6Addr+":5678", resolveAddress(":5678"))
 	// Empty port string
-	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress(""))
+	assert.Equal(t, globalIpv6Addr+":8080", resolveAddress(""))
 	// Invalid port (non-numeric)
-	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress(":abcd"))
+	assert.Equal(t, globalIpv6Addr+":8080", resolveAddress(":abcd"))
 	// Invalid port (out of range)
-	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress(":70000"))
-	// Port without colon
-	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress("5678"))
+	assert.Equal(t, globalIpv6Addr+":8080", resolveAddress(":70000"))
+	// Port without colon (invalid, falls back to default)
+	assert.Equal(t, globalIpv6Addr+":8080", resolveAddress("5678"))
+
+	// IPv4 tests (explicit addresses)
+	// IPv4 localhost
+	assert.Equal(t, "127.0.0.1:3000", resolveAddress("127.0.0.1:3000"))
+	// IPv4 all interfaces
+	assert.Equal(t, globalIpv4Addr+":8080", resolveAddress("0.0.0.0:8080"))
+	// IPv4 specific IP
+	assert.Equal(t, "192.168.1.100:9000", resolveAddress("192.168.1.100:9000"))
+
+	// IPv6 tests (explicit addresses)
+	// IPv6 localhost
+	assert.Equal(t, "[::1]:3000", resolveAddress("[::1]:3000"))
+	// IPv6 all interfaces
+	assert.Equal(t, globalIpv6Addr+":8080", resolveAddress("[::]:8080"))
+	// IPv6 specific address
+	assert.Equal(t, "[2001:db8::1]:9000", resolveAddress("[2001:db8::1]:9000"))
 }
 
 func TestGetBytes(t *testing.T) {

@@ -69,7 +69,7 @@ func TestSetHandlers(t *testing.T) {
 	handlers := handlersChain{handler1, handler2}
 
 	// Test setting handlers on a node without existing handlers
-	n.setHandlers(n, handlers, "/test")
+	n.setHandlers(n, handlers)
 	assert.Len(t, n.handlers, 2, "Handlers chain should have 2 handlers")
 }
 
@@ -140,14 +140,14 @@ func TestHandleCompoundSegment(t *testing.T) {
 	paramNames := make(map[string]bool)
 
 	// Test handling a compound segment with dot notation
-	compoundNode := root.handleCompoundSegment(root, ":file.:ext", "/docs/:file.:ext", paramNames)
+	compoundNode := root.handleCompoundSegment(root, ":file.:ext", paramNames)
 	assert.Equal(t, ":file.:ext", compoundNode.path, "Compound path should be ':file.:ext'")
 	assert.Equal(t, static, compoundNode.nType, "Node type should be static")
 	assert.True(t, paramNames["file"], "Parameter 'file' should be registered")
 	assert.True(t, paramNames["ext"], "Parameter 'ext' should be registered")
 
 	// Test handling a compound segment with dash notation
-	compoundNode = root.handleCompoundSegment(root, ":from-:to", "/route/:from-:to", paramNames)
+	compoundNode = root.handleCompoundSegment(root, ":from-:to", paramNames)
 	assert.Equal(t, ":from-:to", compoundNode.path, "Compound path should be ':from-:to'")
 	assert.Equal(t, static, compoundNode.nType, "Node type should be static")
 	assert.True(t, paramNames["from"], "Parameter 'from' should be registered")

@@ -136,9 +136,9 @@ func (formBinding) Bind(ctx *fasthttp.RequestCtx, obj any) error {
 
 	// Convert fasthttp args to url.Values
 	values := make(url.Values)
-	args.VisitAll(func(key, value []byte) {
+	for key, value := range args.All() {
 		values.Add(string(key), string(value))
-	})
+	}
 
 	return formDecoder.Decode(obj, values)
 }
@@ -157,9 +157,9 @@ func (queryBinding) Bind(ctx *fasthttp.RequestCtx, obj any) error {
 
 	// Convert fasthttp args to url.Values
 	values := make(url.Values)
-	args.VisitAll(func(key, value []byte) {
+	for key, value := range args.All() {
 		values.Add(string(key), string(value))
-	})
+	}
 
 	return formDecoder.Decode(obj, values)
 }
@@ -211,10 +211,10 @@ func (headerBinding) Name() string {
 func (headerBinding) Bind(ctx *fasthttp.RequestCtx, obj any) error {
 	// Convert fasthttp headers to url.Values
 	values := make(url.Values)
-	ctx.Request.Header.VisitAll(func(key, value []byte) {
+	for key, value := range ctx.Request.Header.All() {
 		// Convert header keys to lowercase for case-insensitive matching
 		values.Add(strings.ToLower(string(key)), string(value))
-	})
+	}
 
 	return formDecoder.Decode(obj, values)
 }

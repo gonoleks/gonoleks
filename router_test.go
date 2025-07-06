@@ -1,23 +1,30 @@
 package gonoleks
 
 import (
+	"strings"
 	"sync"
 	"testing"
+	"unsafe"
 
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 )
 
 func createTestRouter() *router {
-	cache, _ := lru.New[string, any](10)
 	return &router{
-		trees:   make(map[string]*node),
-		cache:   cache,
-		options: &Options{MaxRequestURLLength: 2048},
+		trees: make(map[string]*node),
 		pool: sync.Pool{
 			New: func() any { return new(Context) },
 		},
+		// Add missing app reference to prevent nil pointer dereference
+		app: &Gonoleks{
+			enableLogging: false, // Set to false for tests
+			Options: Options{
+				MaxRequestURLLength: 2048,
+			},
+		},
+		globalMiddleware: make(handlersChain, 0), // Initialize to prevent nil slice issues
 	}
 }
 
@@ -133,45 +140,6 @@ func TestRouterAcquireReleaseCtx(t *testing.T) {
 	assert.Equal(t, -1, ctx2.index, "Context index should be reset to -1")
 }
 
-func TestRouterHandleCache(t *testing.T) {
-	r := createTestRouter()
-	handler := func(c *Context) {
-		c.Status(StatusOK)
-	}
-
-	// Register a route
-	r.handle(MethodGet, "/test", handlersChain{handler})
-
-	// Create a request context
-	fctx := createTestRequestCtx(MethodGet, "/test")
-	ctx := r.acquireCtx(fctx)
-
-	// First request should not be cached
-	assert.False(t, r.handleCache(MethodGet, "/test", ctx), "First request should not be from cache")
-
-	// Process the route to populate the cache
-	assert.True(t, r.handleRoute(MethodGet, "/test", ctx), "Route should be handled")
-
-	// Reset context
-	r.releaseCtx(ctx)
-	ctx = r.acquireCtx(fctx)
-
-	// Second request should be cached
-	assert.True(t, r.handleCache(MethodGet, "/test", ctx), "Second request should be from cache")
-
-	// Test with disabled caching
-	r.options.DisableCaching = true
-	r.releaseCtx(ctx)
-	ctx = r.acquireCtx(fctx)
-	assert.False(t, r.handleCache(MethodGet, "/test", ctx), "Request should not be cached when caching is disabled")
-
-	// Test with non-cacheable method
-	r.options.DisableCaching = false
-	r.releaseCtx(ctx)
-	ctx = r.acquireCtx(fctx)
-	assert.False(t, r.handleCache(MethodTrace, "/test", ctx), "TRACE method should not be cached")
-}
-
 func TestRouterHandleRoute(t *testing.T) {
 	r := createTestRouter()
 	handlerCalled := false
@@ -190,43 +158,21 @@ func TestRouterHandleRoute(t *testing.T) {
 
 	// Test handling a route
 	assert.True(t, r.handleRoute(MethodGet, "/test", ctx), "Route should be handled")
+	// Execute the handlers to actually call them
+	ctx.Next()
 	assert.True(t, handlerCalled, "Handler should be called")
 
 	// Test handling a non-existent route
 	handlerCalled = false
+	ctx = r.acquireCtx(fctx) // Reset context
 	assert.False(t, r.handleRoute(MethodGet, "/nonexistent", ctx), "Non-existent route should not be handled")
 	assert.False(t, handlerCalled, "Handler should not be called")
 
 	// Test handling a route with a different method
 	handlerCalled = false
+	ctx = r.acquireCtx(fctx) // Reset context
 	assert.False(t, r.handleRoute(MethodPost, "/test", ctx), "Route with different method should not be handled")
 	assert.False(t, handlerCalled, "Handler should not be called")
-}
-
-func TestRouterHandleOptions(t *testing.T) {
-	r := createTestRouter()
-	handler := func(c *Context) {}
-
-	// Register routes with different methods
-	r.handle(MethodGet, "/test", handlersChain{handler})
-	r.handle(MethodPost, "/test", handlersChain{handler})
-
-	// Create a request context
-	fctx := createTestRequestCtx(MethodOptions, "/test")
-	ctx := r.acquireCtx(fctx)
-
-	// Test handling OPTIONS request
-	assert.True(t, r.handleOptions(fctx, MethodOptions, "/test", ctx), "OPTIONS request should be handled")
-
-	// Verify the Allow header was set
-	allowHeader := string(fctx.Response.Header.Peek("Allow"))
-	assert.Contains(t, allowHeader, MethodGet)
-	assert.Contains(t, allowHeader, MethodPost)
-	assert.Contains(t, allowHeader, MethodOptions)
-
-	// Test handling OPTIONS request for a non-existent path
-	fctx = createTestRequestCtx(MethodOptions, "/nonexistent")
-	assert.False(t, r.handleOptions(fctx, MethodOptions, "/nonexistent", ctx), "OPTIONS request for non-existent path should not be handled")
 }
 
 func TestRouterHandleMethodNotAllowed(t *testing.T) {
@@ -258,28 +204,6 @@ func TestRouterHandleMethodNotAllowed(t *testing.T) {
 	assert.False(t, r.handleMethodNotAllowed(fctx, MethodPost, "/nonexistent", ctx), "Method not allowed for non-existent path should not be handled")
 }
 
-func TestRouterHandleNoRoute(t *testing.T) {
-	r := createTestRouter()
-
-	// Create a request context
-	fctx := createTestRequestCtx(MethodGet, "/nonexistent")
-	ctx := r.acquireCtx(fctx)
-
-	// Test handling no route without custom handlers
-	assert.False(t, r.handleNoRoute(ctx), "No route without custom handlers should not be handled")
-
-	// Set custom no route handlers
-	handlerCalled := false
-	r.SetNoRoute(handlersChain{func(c *Context) {
-		handlerCalled = true
-		c.Status(StatusNotFound)
-	}})
-
-	// Test handling no route with custom handlers
-	assert.True(t, r.handleNoRoute(ctx), "No route with custom handlers should be handled")
-	assert.True(t, handlerCalled, "No route handler should be called")
-}
-
 func TestRouterSetNoRoute(t *testing.T) {
 	r := createTestRouter()
 	handler := func(c *Context) {}
@@ -295,9 +219,8 @@ func TestRouterHandler(t *testing.T) {
 	r := createTestRouter()
 
 	// Enable all handler options
-	r.options.HandleOPTIONS = true
-	r.options.HandleMethodNotAllowed = true
-	r.options.AutoRecover = true
+	r.app.HandleMethodNotAllowed = true
+	r.app.Use(Recovery())
 
 	// Register routes
 	handlerCalled := false
@@ -329,7 +252,7 @@ func TestRouterHandler(t *testing.T) {
 	assert.Equal(t, StatusMethodNotAllowed, fctx.Response.StatusCode(), "Status code should be 405")
 
 	// Test case insensitive routing
-	r.options.CaseInSensitive = true
+	r.app.CaseInSensitive = true
 	r.handle(MethodGet, "/case", handlersChain{func(c *Context) {
 		c.Status(StatusOK)
 	}})
@@ -337,63 +260,6 @@ func TestRouterHandler(t *testing.T) {
 	fctx = createTestRequestCtx(MethodGet, "/CASE")
 	r.Handler(fctx)
 	assert.Equal(t, StatusOK, fctx.Response.StatusCode(), "Status code should be 200 with case insensitive routing")
-}
-
-func TestRouterRecoverFromPanic(t *testing.T) {
-	r := createTestRouter()
-
-	// Register a route that panics
-	r.handle(MethodGet, "/panic", handlersChain{func(c *Context) {
-		panic("test panic")
-	}})
-
-	// Enable auto recovery
-	r.options.AutoRecover = true
-
-	// Test handling a request that causes a panic
-	fctx := createTestRequestCtx(MethodGet, "/panic")
-	assert.NotPanics(t, func() {
-		r.Handler(fctx)
-	}, "Handler should recover from panic")
-
-	assert.Equal(t, StatusInternalServerError, fctx.Response.StatusCode(), "Status code should be 500 after panic")
-}
-
-func TestRouterWithCaching(t *testing.T) {
-	cache, _ := lru.New[string, any](10)
-	r := &router{
-		trees:   make(map[string]*node),
-		cache:   cache,
-		options: &Options{MaxRequestURLLength: 2048},
-		pool: sync.Pool{
-			New: func() any { return new(Context) },
-		},
-	}
-
-	// Register a route
-	handlerCallCount := 0
-	r.handle(MethodGet, "/cached", handlersChain{func(c *Context) {
-		handlerCallCount++
-		c.Status(StatusOK)
-	}})
-
-	// First request should not be cached
-	fctx1 := createTestRequestCtx(MethodGet, "/cached")
-	r.Handler(fctx1)
-	assert.Equal(t, 1, handlerCallCount, "Handler should be called once")
-
-	// Second request should be served from cache
-	fctx2 := createTestRequestCtx(MethodGet, "/cached")
-	r.Handler(fctx2)
-	assert.Equal(t, 2, handlerCallCount, "Handler should be called twice")
-
-	// Disable caching
-	r.options.DisableCaching = true
-
-	// Third request should not be served from cache
-	fctx3 := createTestRequestCtx(MethodGet, "/cached")
-	r.Handler(fctx3)
-	assert.Equal(t, 3, handlerCallCount, "Handler should be called three times")
 }
 
 func TestRouterWithParameters(t *testing.T) {
@@ -453,9 +319,6 @@ func TestRouterWithCompoundParameters(t *testing.T) {
 func TestRouterWithLogging(t *testing.T) {
 	r := createTestRouter()
 
-	// Enable logging
-	r.options.DisableLogging = false
-
 	// Register a route
 	r.handle(MethodGet, "/log", handlersChain{func(c *Context) {
 		c.Status(StatusOK)
@@ -470,12 +333,375 @@ func TestRouterWithLogging(t *testing.T) {
 		r.Handler(fctx)
 	}, "Handler with logging should not panic")
 
-	// Disable logging
-	r.options.DisableLogging = true
-
 	// Test handling a request with logging disabled
 	fctx = createTestRequestCtx(MethodGet, "/log")
 	assert.NotPanics(t, func() {
 		r.Handler(fctx)
 	}, "Handler without logging should not panic")
+}
+
+func TestNewFastRouter(t *testing.T) {
+	fr := NewFastRouter()
+
+	// Test that FastRouter is properly initialized
+	assert.NotNil(t, fr, "FastRouter should not be nil")
+	assert.NotNil(t, fr.routeMap, "routeMap should be initialized")
+	assert.NotNil(t, fr.routeMap, "routeMap should be initialized and not nil")
+
+	// Test that context pool is working
+	ctx := fr.GetContext()
+	assert.NotNil(t, ctx, "Context from pool should not be nil")
+	assert.NotNil(t, ctx.paramValues, "Context paramValues should be initialized")
+	assert.Equal(t, 0, len(ctx.paramValues), "paramValues should have initial length of 0")
+	assert.Equal(t, 16, cap(ctx.handlers), "handlers should have capacity of 16")
+	assert.Equal(t, -1, ctx.index, "Context index should be -1")
+
+	// Test that pool is pre-warmed
+	fr.PutContext(ctx)
+	ctx2 := fr.GetContext()
+	assert.NotNil(t, ctx2, "Second context from pool should not be nil")
+}
+
+func TestRouter_AddRoute(t *testing.T) {
+	fr := NewFastRouter()
+	handler := func(c *Context) { c.Status(200) }
+	handlers := handlersChain{handler}
+
+	// Test adding a route
+	fr.AddRoute(MethodGet, "/test", handlers)
+
+	// Verify route was added to all caches
+	routeKey := "GET/test"
+	hash := fastHash([]byte(routeKey))
+
+	// Check common routes cache
+	commonIndex := hash & 1023
+	assert.Equal(t, hash, fr.commonRoutes[commonIndex].key, "Route should be in common routes cache")
+	assert.Equal(t, handlers, fr.commonRoutes[commonIndex].handlers, "Handlers should match in common routes")
+
+	// Check route cache
+	cacheIndex := hash & 255
+	assert.NotEqual(t, uintptr(0), fr.routeCache[cacheIndex].key, "Route should be in route cache")
+	assert.Equal(t, handlers, fr.routeCache[cacheIndex].handlers, "Handlers should match in route cache")
+
+	// Test string interning
+	fr.AddRoute(MethodGet, "/test", handlers) // Add same route again
+	interned, ok := fr.stringPool.Load(routeKey)
+	assert.True(t, ok, "Route key should be interned")
+	assert.Equal(t, routeKey, interned.(string), "Interned string should match")
+}
+
+func TestRouter_FastLookup(t *testing.T) {
+	fr := NewFastRouter()
+	handler := func(c *Context) { c.Status(200) }
+	handlers := handlersChain{handler}
+
+	// Test lookup for non-existent route
+	result, found := fr.FastLookup(MethodGet, "/nonexistent")
+	assert.False(t, found, "Non-existent route should not be found")
+	assert.Nil(t, result, "Result should be nil for non-existent route")
+
+	// Add a route and test lookup
+	fr.AddRoute(MethodGet, "/test", handlers)
+	result, found = fr.FastLookup(MethodGet, "/test")
+	assert.True(t, found, "Existing route should be found")
+	assert.Equal(t, handlers, result, "Handlers should match")
+
+	// Test different methods
+	fr.AddRoute(MethodPost, "/test", handlers)
+	result, found = fr.FastLookup(MethodPost, "/test")
+	assert.True(t, found, "POST route should be found")
+	assert.Equal(t, handlers, result, "POST handlers should match")
+
+	// Test case sensitivity
+	_, found = fr.FastLookup(strings.ToLower(MethodGet), "/test")
+	assert.False(t, found, "Lowercase method should not match")
+
+	_, found = fr.FastLookup(MethodGet, "/Test")
+	assert.False(t, found, "Different case path should not match")
+}
+
+func TestRouter_UltraFastLookup(t *testing.T) {
+	fr := NewFastRouter()
+	handler := func(c *Context) { c.Status(200) }
+	handlers := handlersChain{handler}
+
+	// Add a route
+	fr.AddRoute(MethodGet, "/ultra", handlers)
+
+	// Test UltraFastLookup with unsafe pointers
+	method := MethodGet
+	path := "/ultra"
+	methodPtr := unsafe.Pointer(unsafe.StringData(method))
+	pathPtr := unsafe.Pointer(unsafe.StringData(path))
+
+	result, found := fr.UltraFastLookup(methodPtr, pathPtr, len(method), len(path))
+	assert.True(t, found, "UltraFastLookup should find the route")
+	assert.Equal(t, handlers, result, "Handlers should match")
+
+	// Test with non-existent route
+	method2 := MethodPost
+	path2 := "/nonexistent"
+	methodPtr2 := unsafe.Pointer(unsafe.StringData(method2))
+	pathPtr2 := unsafe.Pointer(unsafe.StringData(path2))
+
+	result, found = fr.UltraFastLookup(methodPtr2, pathPtr2, len(method2), len(path2))
+	assert.False(t, found, "UltraFastLookup should not find non-existent route")
+	assert.Nil(t, result, "Result should be nil for non-existent route")
+}
+
+func TestRouter_ContextPool(t *testing.T) {
+	fr := NewFastRouter()
+
+	// Test getting context from pool
+	ctx := fr.GetContext()
+	require.NotNil(t, ctx, "Context should not be nil")
+	assert.Equal(t, -1, ctx.index, "Initial index should be -1")
+	assert.Empty(t, ctx.fullPath, "Initial fullPath should be empty")
+	assert.Empty(t, ctx.handlers, "Initial handlers should be empty")
+	assert.NotNil(t, ctx.paramValues, "paramValues should be initialized")
+
+	// Modify context
+	ctx.index = 5
+	ctx.fullPath = "/test/path"
+	ctx.handlers = handlersChain{func(c *Context) {}}
+	ctx.paramValues["id"] = "123"
+	ctx.paramValues["name"] = "test"
+
+	// Put context back to pool
+	fr.PutContext(ctx)
+
+	// Verify context was reset
+	assert.Equal(t, -1, ctx.index, "Index should be reset to -1")
+	assert.Empty(t, ctx.fullPath, "fullPath should be reset")
+	assert.Empty(t, ctx.handlers, "handlers should be reset")
+	assert.Empty(t, ctx.paramValues, "paramValues should be cleared")
+
+	// Get another context and verify it's clean
+	ctx2 := fr.GetContext()
+	assert.Equal(t, -1, ctx2.index, "New context index should be -1")
+	assert.Empty(t, ctx2.fullPath, "New context fullPath should be empty")
+	assert.Empty(t, ctx2.handlers, "New context handlers should be empty")
+	assert.Empty(t, ctx2.paramValues, "New context paramValues should be empty")
+}
+
+func TestRouter_WarmupCache(t *testing.T) {
+	fr := NewFastRouter()
+	handler := func(c *Context) { c.Status(200) }
+	handlers := handlersChain{handler}
+
+	// Add some routes
+	fr.AddRoute(MethodGet, "/api/v1/users", handlers)
+	fr.AddRoute(MethodPost, "/api/v1/users", handlers)
+	fr.AddRoute(MethodGet, "/api/v1/posts", handlers)
+
+	// Test warmup cache
+	routes := []string{"/api/v1/users", "/api/v1/posts", "/api/v1/comments"}
+	assert.NotPanics(t, func() {
+		fr.WarmupCache(routes)
+	}, "WarmupCache should not panic")
+
+	// Verify routes are still accessible after warmup
+	result, found := fr.FastLookup(MethodGet, "/api/v1/users")
+	assert.True(t, found, "Route should still be found after warmup")
+	assert.Equal(t, handlers, result, "Handlers should still match after warmup")
+}
+
+func TestRouter_GetStats(t *testing.T) {
+	fr := NewFastRouter()
+
+	// Test initial stats
+	hits, misses := fr.GetStats()
+	assert.Equal(t, uint64(0), hits, "Initial hits should be 0")
+	assert.Equal(t, uint64(0), misses, "Initial misses should be 0")
+
+	// Note: The current implementation doesn't actually update hit/miss counters
+	// This test verifies the method works and returns the expected types
+}
+
+func TestFastHash(t *testing.T) {
+	// Test hash function consistency
+	data1 := []byte("GET/test")
+	data2 := []byte("GET/test")
+	data3 := []byte("POST/test")
+
+	hash1 := fastHash(data1)
+	hash2 := fastHash(data2)
+	hash3 := fastHash(data3)
+
+	assert.Equal(t, hash1, hash2, "Same data should produce same hash")
+	assert.NotEqual(t, hash1, hash3, "Different data should produce different hash")
+
+	// Test with empty data
+	emptyHash := fastHash([]byte{})
+	assert.NotEqual(t, uint32(0), emptyHash, "Empty data should still produce a hash")
+
+	// Test hash distribution (basic check)
+	hashes := make(map[uint32]bool)
+	for i := 0; i < 1000; i++ {
+		data := []byte("route" + string(rune(i)))
+		hash := fastHash(data)
+		hashes[hash] = true
+	}
+	// Should have good distribution (at least 90% unique hashes)
+	assert.Greater(t, len(hashes), 900, "Hash function should have good distribution")
+}
+
+func TestStringToPointer(t *testing.T) {
+	// Test pointer conversion consistency
+	str1 := "test string"
+	str2 := "test string"
+	str3 := "different string"
+
+	ptr1 := stringToPointer(str1)
+	ptr2 := stringToPointer(str2)
+	ptr3 := stringToPointer(str3)
+
+	// Same string content should produce same pointer
+	assert.Equal(t, ptr1, ptr2, "Same string content should produce same pointer")
+	assert.NotEqual(t, ptr1, ptr3, "Different strings should produce different pointers")
+
+	// Test with empty string - should return null pointer (0x0)
+	emptyPtr := stringToPointer("")
+	assert.Equal(t, uintptr(0), emptyPtr, "Empty string should return null pointer")
+
+	// Test with non-empty strings should return valid pointers
+	assert.NotEqual(t, uintptr(0), ptr1, "Non-empty string should return valid pointer")
+	assert.NotEqual(t, uintptr(0), ptr2, "Non-empty string should return valid pointer")
+	assert.NotEqual(t, uintptr(0), ptr3, "Non-empty string should return valid pointer")
+}
+
+func TestRouter_CacheCollisions(t *testing.T) {
+	fr := NewFastRouter()
+	handler1 := func(c *Context) { c.Status(200) }
+	handler2 := func(c *Context) { c.Status(201) }
+	handlers1 := handlersChain{handler1}
+	handlers2 := handlersChain{handler2}
+
+	// Add many routes to test cache collision handling
+	for i := 0; i < 300; i++ {
+		method := MethodGet
+		path := "/route" + string(rune(i))
+		var handlers handlersChain
+		if i%2 == 0 {
+			handlers = handlers1
+		} else {
+			handlers = handlers2
+		}
+		fr.AddRoute(method, path, handlers)
+	}
+
+	// Verify all routes can still be found
+	for i := 0; i < 300; i++ {
+		path := "/route" + string(rune(i))
+		result, found := fr.FastLookup(MethodGet, path)
+		assert.True(t, found, "Route %s should be found", path)
+		assert.NotNil(t, result, "Handlers should not be nil for route %s", path)
+	}
+}
+
+func TestRouter_ConcurrentAccess(t *testing.T) {
+	fr := NewFastRouter()
+	handler := func(c *Context) { c.Status(200) }
+	handlers := handlersChain{handler}
+
+	// Add some initial routes
+	for i := 0; i < 10; i++ {
+		path := "/concurrent" + string(rune(i))
+		fr.AddRoute(MethodGet, path, handlers)
+	}
+
+	// Test concurrent lookups
+	done := make(chan bool, 10)
+	for i := 0; i < 10; i++ {
+		go func(routeNum int) {
+			defer func() { done <- true }()
+			path := "/concurrent" + string(rune(routeNum))
+			for j := 0; j < 100; j++ {
+				result, found := fr.FastLookup(MethodGet, path)
+				assert.True(t, found, "Route should be found in concurrent access")
+				assert.Equal(t, handlers, result, "Handlers should match in concurrent access")
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+func BenchmarkRouter_AddRoute(b *testing.B) {
+	fr := NewFastRouter()
+	handler := func(c *Context) { c.Status(200) }
+	handlers := handlersChain{handler}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		path := "/bench" + string(rune(i%1000)) // Cycle through 1000 different paths
+		fr.AddRoute(MethodGet, path, handlers)
+	}
+}
+
+func BenchmarkRouter_FastLookup(b *testing.B) {
+	fr := NewFastRouter()
+	handler := func(c *Context) { c.Status(200) }
+	handlers := handlersChain{handler}
+
+	// Pre-populate with routes
+	for i := 0; i < 1000; i++ {
+		path := "/bench" + string(rune(i))
+		fr.AddRoute(MethodGet, path, handlers)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		path := "/bench" + string(rune(i%1000))
+		fr.FastLookup(MethodGet, path)
+	}
+}
+
+func BenchmarkRouter_UltraFastLookup(b *testing.B) {
+	fr := NewFastRouter()
+	handler := func(c *Context) { c.Status(200) }
+	handlers := handlersChain{handler}
+
+	// Pre-populate with routes
+	for i := 0; i < 1000; i++ {
+		path := "/bench" + string(rune(i))
+		fr.AddRoute(MethodGet, path, handlers)
+	}
+
+	method := MethodGet
+	methodPtr := unsafe.Pointer(unsafe.StringData(method))
+	methodLen := len(method)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		path := "/bench" + string(rune(i%1000))
+		pathPtr := unsafe.Pointer(unsafe.StringData(path))
+		pathLen := len(path)
+		fr.UltraFastLookup(methodPtr, pathPtr, methodLen, pathLen)
+	}
+}
+
+func BenchmarkRouter_ContextPool(b *testing.B) {
+	fr := NewFastRouter()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		ctx := fr.GetContext()
+		// Simulate some work
+		ctx.index = i
+		ctx.paramValues["test"] = "value"
+		fr.PutContext(ctx)
+	}
 }

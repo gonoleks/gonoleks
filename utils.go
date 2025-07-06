@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	globalIpv4Addr = "0.0.0.0" // Default binding address for all network interfaces
+	globalIpv6Addr = "[::]"    // Default binding address for all network interfaces (IPv6)
+	globalIpv4Addr = "0.0.0.0" // Default binding address for all network interfaces (IPv4)
 	defaultPort    = ":8080"   // Default port for the server
 )
 
@@ -43,42 +44,64 @@ func (h H) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 // resolveAddress validates and resolves the provided port string into a complete address
 // It handles empty ports, ports with colon prefix, and invalid port formats
-// Returns a properly formatted address string with the global IPv4 address
+// Returns a properly formatted address string with IPv6 as default
 func resolveAddress(portStr string) string {
 	if portStr == "" {
 		log.Warnf(ErrEmptyPortFormat, defaultPort)
-		return globalIpv4Addr + defaultPort
+		return globalIpv6Addr + defaultPort
 	}
 
 	if strings.HasPrefix(portStr, ":") {
 		portNum, err := strconv.Atoi(portStr[1:])
 		if err != nil || portNum < 1 || portNum > 65535 {
 			log.With("port", portStr).Warnf(ErrInvalidPortFormat, defaultPort)
-			return globalIpv4Addr + defaultPort
+			return globalIpv6Addr + defaultPort
 		}
-		return globalIpv4Addr + portStr
+		// Default to IPv6 when only port is specified
+		return globalIpv6Addr + portStr
 	}
 
-	// Invalid format
+	// If it doesn't start with colon but contains colon, it's a complete address
+	if strings.Contains(portStr, ":") {
+		return portStr
+	}
+
+	// If there's no colon at all, it's invalid (port number without colon)
+	// Fall back to default port
 	log.With("port", portStr).Warnf(ErrInvalidPortFormat, defaultPort)
-	return globalIpv4Addr + defaultPort
+	return globalIpv6Addr + defaultPort
+}
+
+// detectNetworkProtocol determines the network protocol based on the address format
+func detectNetworkProtocol(address string) string {
+	// IPv6 addresses are enclosed in brackets or contain multiple colons
+	if strings.Contains(address, "[") || strings.Count(address, ":") > 1 {
+		return "tcp6"
+	}
+	// IPv4 addresses contain dots
+	if strings.Contains(address, ".") {
+		return "tcp4"
+	}
+	// Default to IPv6 for ambiguous cases
+	return "tcp6"
 }
 
 // getBytes converts string to []byte without copying
 // Don't modify the returned slice
 // #nosec G103 - Safe unsafe usage
 func getBytes(s string) []byte {
-	return *(*[]byte)(unsafe.Pointer(
-		&struct {
-			string
-			Cap int
-		}{s, len(s)},
-	))
+	if len(s) == 0 {
+		return nil
+	}
+	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
 
 // getString converts []byte to string without copying
 // Don't modify the input slice after calling this
 // #nosec G103 - Safe unsafe usage
 func getString(b []byte) string {
-	return *(*string)(unsafe.Pointer(&b))
+	if len(b) == 0 {
+		return ""
+	}
+	return unsafe.String(&b[0], len(b))
 }

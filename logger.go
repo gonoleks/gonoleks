@@ -2,16 +2,62 @@ package gonoleks
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
+	"github.com/muesli/termenv"
 	"github.com/valyala/fasthttp"
 )
 
-// Custom log level for HTTP requests
-const HTTPLevel = log.Level(1)
+// LogFormatterParams contains the parameters for custom log formatting
+type LogFormatterParams struct {
+	// Request contains the HTTP request
+	Request *fasthttp.Request
+
+	// TimeStamp shows the time after the server returns a response (auto-styled with faint when formatted)
+	TimeStamp time.Time
+
+	// StatusCode is HTTP response code
+	StatusCode int
+
+	// Latency is how much time the server cost to process a certain request (auto-styled with faint)
+	Latency time.Duration
+
+	// ClientIP equals Context.ClientIP()
+	ClientIP string
+
+	// Method is the HTTP method given to the request
+	Method string
+
+	// Path is a path the client requests
+	Path string
+
+	// ErrorMessage is set if error has occurred in processing the request
+	ErrorMessage string
+
+	// BodySize is the size of the Response Body
+	BodySize int
+
+	// Keys are the keys set on the request's context
+	Keys map[string]any
+}
+
+// LoggerConfig defines the config for Logger middleware
+type LoggerConfig struct {
+	// Formatter is the log format function
+	Formatter LogFormatter // Default = DefaultLogFormatter
+
+	// Output is a writer where logs are written
+	Output io.Writer // Default = os.Stdout
+
+	// SkipPaths is an url path array which logs are not written
+	SkipPaths []string
+}
+
+// LogFormatter gives the signature of the formatter function passed to LoggerWithFormatter
+type LogFormatter func(params LogFormatterParams) string
 
 var (
 	// Status code styles
@@ -29,6 +75,34 @@ var (
 	methodDeleteStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("204")).Bold(true)
 	methodDefaultStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("219")).Bold(true)
 )
+
+// DefaultLogFormatter is the default log format function Logger middleware uses
+var DefaultLogFormatter = func(param LogFormatterParams) string {
+	styledStatus := getStatusStyle(param.StatusCode).Width(5).Align(lipgloss.Center).Render(fmt.Sprint(param.StatusCode))
+	styledMethod := getMethodStyle(param.Method).Render(fmt.Sprintf("%-7s", param.Method))
+
+	return fmt.Sprintf("%s| %13v | %15s | %s %q",
+		styledStatus,
+		param.Latency,
+		param.ClientIP,
+		styledMethod,
+		param.Path,
+	)
+}
+
+// DisableConsoleColor disables color output in the console
+func DisableConsoleColor() {
+	p := termenv.Ascii
+	lipgloss.SetColorProfile(p)
+	log.SetColorProfile(p)
+}
+
+// ForceConsoleColor forces color output in the console
+func ForceConsoleColor() {
+	p := termenv.TrueColor
+	lipgloss.SetColorProfile(p)
+	log.SetColorProfile(p)
+}
 
 // getStatusStyle returns the appropriate pre-created style for the status code
 // Colors are grouped by status code ranges to provide visual indication of response types:
@@ -53,151 +127,131 @@ func getStatusStyle(status int) lipgloss.Style {
 }
 
 // getMethodStyle returns the appropriate pre-created style for the HTTP method
-func getMethodStyle(method []byte) lipgloss.Style {
-	// Check common HTTP methods
-	switch len(method) {
-	case 3: // GET, PUT
-		if method[0] == 'G' && method[1] == 'E' && method[2] == 'T' {
-			return methodGetStyle
-		}
-		if method[0] == 'P' && method[1] == 'U' && method[2] == 'T' {
-			return methodPutStyle
-		}
-	case 4: // POST, HEAD
-		if method[0] == 'P' && method[1] == 'O' && method[2] == 'S' && method[3] == 'T' {
-			return methodPostStyle
-		}
-		if method[0] == 'H' && method[1] == 'E' && method[2] == 'A' && method[3] == 'D' {
-			return methodGetStyle // Same style as GET
-		}
-	case 5: // PATCH
-		if method[0] == 'P' && method[1] == 'A' && method[2] == 'T' && method[3] == 'C' && method[4] == 'H' {
-			return methodPatchStyle
-		}
-	case 6: // DELETE
-		if method[0] == 'D' && method[1] == 'E' && method[2] == 'L' && method[3] == 'E' && method[4] == 'T' && method[5] == 'E' {
-			return methodDeleteStyle
-		}
-	}
-
-	return methodDefaultStyle
-}
-
-// setLoggerOptions configures the global logger with custom styles and output options
-// It initializes color schemes, output destination, and default logging behavior
-func setLoggerOptions(options *Options) {
-	styles := log.DefaultStyles()
-	styles.Timestamp = lipgloss.NewStyle().Faint(true)
-	styles.Values["error"] = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
-	styles.Levels[HTTPLevel] = lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true).SetString("HTTP")
-
-	log.SetStyles(styles)
-	log.SetOutput(os.Stderr)
-
-	// Apply custom time format if provided, otherwise use default format
-	if options.LogTimeFormat == "" {
-		options.LogTimeFormat = "2006/01/02 15:04:05"
-	}
-	log.SetTimeFormat(options.LogTimeFormat)
-
-	// Setup logger prefix if provided
-	if options.LogPrefix != "" {
-		log.SetPrefix(options.LogPrefix)
-	}
-
-	// Configure caller reporting based on options or use default
-	if options.LogReportCaller {
-		log.SetReportCaller(true)
+func getMethodStyle(method string) lipgloss.Style {
+	// Use more efficient byte comparison with constants
+	switch {
+	case len(method) == 3 && method[0] == 'G' && method[1] == 'E' && method[2] == 'T':
+		return methodGetStyle
+	case len(method) == 3 && method[0] == 'P' && method[1] == 'U' && method[2] == 'T':
+		return methodPutStyle
+	case len(method) == 4 && method[0] == 'P' && method[1] == 'O' && method[2] == 'S' && method[3] == 'T':
+		return methodPostStyle
+	case len(method) == 4 && method[0] == 'H' && method[1] == 'E' && method[2] == 'A' && method[3] == 'D':
+		return methodGetStyle
+	case len(method) == 5 && method[0] == 'P' && method[1] == 'A' && method[2] == 'T' && method[3] == 'C' && method[4] == 'H':
+		return methodPatchStyle
+	case len(method) == 6 && method[0] == 'D' && method[1] == 'E' && method[2] == 'L' && method[3] == 'E' && method[4] == 'T' && method[5] == 'E':
+		return methodDeleteStyle
+	default:
+		return methodDefaultStyle
 	}
 }
 
-// logWithOptionalFields logs a message with optional fields at the specified log level
-// It optimizes logging by avoiding unnecessary allocations
-func logWithOptionalFields(level log.Level, format string, args []any, fields []any) {
-	if len(fields) == 0 {
-		log.Logf(level, format, args...)
-		return
-	}
-
-	// Use a pre-allocated logger with fields
-	logger := log.With(fields...)
-	logger.Logf(level, format, args...)
+// Logger instances a Logger middleware that will write the logs to os.Stdout
+// By default, Logger() will output logs to os.Stdout
+func Logger() handlerFunc {
+	return LoggerWithConfig(LoggerConfig{})
 }
 
-// logHTTPTransaction records details of an HTTP request-response cycle with color-coded formatting
-// It logs the status code, latency, HTTP method and path, with optional response body or error message
-func logHTTPTransaction(ctx *fasthttp.RequestCtx, latency time.Duration) {
-	options, _ := ctx.UserValue("gonoleksOptions").(*Options)
-	status := ctx.Response.StatusCode()
-	method := ctx.Method()
+// LoggerWithFormatter instance a Logger middleware with the specified log format function
+func LoggerWithFormatter(f LogFormatter) handlerFunc {
+	return LoggerWithConfig(LoggerConfig{
+		Formatter: f,
+	})
+}
 
-	// Pre-allocate logFields with a reasonable capacity to avoid reallocations
-	var logFields []any
+// LoggerWithWriter instance a Logger middleware with the specified writer buffer
+// Example: os.Stdout, a file opened in write mode, a socket...
+func LoggerWithWriter(out io.Writer, notlogged ...string) handlerFunc {
+	log.SetOutput(out)
 
-	// Only convert body to string if we're going to use it
-	if options != nil && ((status >= StatusBadRequest && options.LogReportResponseError) ||
-		(status < StatusBadRequest && options.LogReportResponseBody)) {
-		body := getString(ctx.Response.Body())
+	return LoggerWithConfig(LoggerConfig{
+		Output:    out,
+		SkipPaths: notlogged,
+	})
+}
 
-		if status >= StatusBadRequest {
-			if options.LogReportResponseError && len(body) > 0 {
-				logFields = append(logFields, "error", body)
+// LoggerWithConfig instance a Logger middleware with config
+func LoggerWithConfig(conf LoggerConfig) handlerFunc {
+	formatter := conf.Formatter
+	if formatter == nil {
+		formatter = DefaultLogFormatter
+	}
+
+	// Check if using DefaultLogFormatter
+	usingDefaultLogFormatter := formatter == nil || fmt.Sprintf("%p", formatter) == fmt.Sprintf("%p", DefaultLogFormatter)
+
+	notlogged := conf.SkipPaths
+
+	var skip map[string]struct{}
+
+	if length := len(notlogged); length > 0 {
+		skip = make(map[string]struct{}, length)
+
+		for _, path := range notlogged {
+			skip[path] = struct{}{}
+		}
+	}
+
+	return func(c *Context) {
+		// Start timer
+		start := time.Now()
+		// Avoid string conversion - use byte slices directly
+		path := c.requestCtx.Path()      // Already []byte, no need to convert
+		raw := c.requestCtx.RequestURI() // Already []byte
+
+		// Process request
+		c.Next()
+
+		// Log only when path is not being skipped
+		// Convert to string only for map lookup
+		pathStr := string(path)
+		if _, ok := skip[pathStr]; !ok {
+			param := LogFormatterParams{
+				Request:      &c.requestCtx.Request,
+				TimeStamp:    time.Now(),
+				Latency:      time.Since(start),
+				ClientIP:     c.ClientIP(),
+				Method:       string(c.requestCtx.Method()),
+				StatusCode:   c.requestCtx.Response.StatusCode(),
+				ErrorMessage: "",
+				BodySize:     len(c.requestCtx.Response.Body()),
+				Keys:         nil,
 			}
-		} else if options.LogReportResponseBody && len(body) > 0 {
-			logFields = append(logFields, "responseBody", body)
+
+			// Set path - avoid redundant string conversion
+			if len(raw) > 0 {
+				param.Path = pathStr
+			}
+
+			// Extract error message if any - avoid string conversion unless needed
+			if c.requestCtx.Response.StatusCode() >= StatusBadRequest {
+				body := c.requestCtx.Response.Body()
+				if len(body) > 0 {
+					// Only convert to string when actually needed
+					param.ErrorMessage = string(body)
+				}
+			}
+
+			// Extract keys from context if available
+			if keys := c.requestCtx.UserValue("keys"); keys != nil {
+				if keyMap, ok := keys.(map[string]any); ok {
+					param.Keys = keyMap
+				}
+			}
+
+			logMessage := formatter(param)
+
+			if usingDefaultLogFormatter {
+				// Use Debug log level with timestamp for DefaultLogFormatter
+				log.SetReportTimestamp(true)
+				log.SetLevel(log.DebugLevel)
+				log.Debugf(logMessage)
+			} else {
+				// Use regular Printf without log level and timestamp for custom formatters
+				log.SetReportTimestamp(false)
+				log.Printf(logMessage)
+			}
 		}
 	}
-
-	// Add request headers if configured
-	if options != nil && options.LogReportRequestHeaders {
-		// Create a map for headers
-		headers := make(map[string]string, 10) // Provide initial capacity
-		ctx.Request.Header.VisitAll(func(key, value []byte) {
-			headers[getString(key)] = getString(value)
-		})
-		if len(headers) > 0 {
-			logFields = append(logFields, "headers", headers)
-		}
-	}
-
-	// Add request body if configured
-	if options != nil && options.LogReportRequestBody {
-		reqBody := getString(ctx.Request.Body())
-		if len(reqBody) > 0 {
-			logFields = append(logFields, "requestBody", reqBody)
-		}
-	}
-
-	// Add client IP if configured
-	if options != nil && options.LogReportIP {
-		ip := ctx.RemoteIP().String()
-		if len(ip) > 0 {
-			logFields = append(logFields, "ip", ip)
-		}
-	}
-
-	// Add host if configured
-	if options != nil && options.LogReportHost {
-		host := getString(ctx.Host())
-		if len(host) > 0 {
-			logFields = append(logFields, "host", host)
-		}
-	}
-
-	// Add user agent if configured
-	if options != nil && options.LogReportUserAgent {
-		userAgent := getString(ctx.Request.Header.UserAgent())
-		if len(userAgent) > 0 {
-			logFields = append(logFields, "userAgent", userAgent)
-		}
-	}
-
-	format := "%s| %9s | %s %q"
-	args := []any{
-		getStatusStyle(status).Width(5).Align(lipgloss.Center).Render(fmt.Sprint(status)),
-		latency,
-		getMethodStyle(method).Render(fmt.Sprintf("%-7s", method)),
-		ctx.Path(),
-	}
-	logWithOptionalFields(HTTPLevel, format, args, logFields)
 }

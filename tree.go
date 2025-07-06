@@ -47,7 +47,7 @@ func (n *node) addRoute(path string, handlers handlersChain) {
 	for {
 		pathLen := len(path)
 		if pathLen == 0 {
-			n.setHandlers(currentNode, handlers, originalPath)
+			n.setHandlers(currentNode, handlers)
 			break
 		}
 
@@ -70,7 +70,7 @@ func (n *node) addRoute(path string, handlers handlersChain) {
 
 		// Check for compound parameters like :from-:to
 		if strings.Contains(pathSegment, ".:") || strings.Contains(pathSegment, "-:") {
-			currentNode = n.handleCompoundSegment(currentNode, pathSegment, originalPath, paramNames)
+			currentNode = n.handleCompoundSegment(currentNode, pathSegment, paramNames)
 		} else if pathSegment[0] == ':' || pathSegment[0] == '*' {
 			currentNode = n.handleParameterSegment(currentNode, pathSegment, originalPath, paramNames)
 		} else {
@@ -87,7 +87,7 @@ func (n *node) addRoute(path string, handlers handlersChain) {
 
 // setHandlers assigns handler functions to a node, ensuring no duplicate routes exist
 // It creates a deep copy of the handlers to prevent unintended modifications
-func (n *node) setHandlers(currentNode *node, handlers handlersChain, originalPath string) {
+func (n *node) setHandlers(currentNode *node, handlers handlersChain) {
 	if currentNode.handlers != nil {
 		return
 	}
@@ -151,7 +151,7 @@ func (n *node) handleStaticSegment(currentNode *node, pathSegment, originalPath 
 
 // handleCompoundSegment processes path segments containing multiple parameters separated by delimiters
 // It handles complex patterns like ":file.:ext" or ":from-:to" by creating specialized nodes
-func (n *node) handleCompoundSegment(currentNode *node, pathSegment, originalPath string, paramNames map[string]bool) *node {
+func (n *node) handleCompoundSegment(currentNode *node, pathSegment string, paramNames map[string]bool) *node {
 	// Create a special node for compound segments
 	childNode := currentNode.children[pathSegment]
 	if childNode == nil {
@@ -198,32 +198,39 @@ func extractParamNames(pathSegment string, paramNames map[string]bool) {
 
 // matchRoute traverses the routing tree to find a matching route for the given path
 // It populates the context with parameter values and returns the associated handlers if found
+//
+//go:noinline
 func (n *node) matchRoute(path string, ctx *Context) handlersChain {
 	currentNode := n
-	path = path[1:] // Remove leading slash
+	// Optimized path preprocessing - avoid repeated slice operations
+	pathStart := 0
+	if len(path) > 0 && path[0] == '/' {
+		pathStart = 1 // Skip leading slash without creating new slice
+	}
 
 	for {
 		pathLen := len(path)
-		if pathLen == 0 {
+		if pathStart >= pathLen {
 			return currentNode.handlers
 		}
 
-		segmentDelimiter := strings.Index(path, "/")
+		// Fast path: use strings.IndexByte for optimized slash finding
+		segmentDelimiter := strings.IndexByte(path[pathStart:], '/')
+		var segmentEnd int
 		if segmentDelimiter == -1 {
-			segmentDelimiter = pathLen
+			segmentEnd = pathLen
+		} else {
+			segmentEnd = pathStart + segmentDelimiter
 		}
-
-		pathSegment := path[:segmentDelimiter]
 
 		// Check for empty path segment
-		if len(pathSegment) == 0 {
+		if pathStart == segmentEnd {
 			// Skip empty segments (consecutive slashes)
-			path = path[segmentDelimiter:]
-			if len(path) > 0 {
-				path = path[1:] // Skip the slash
-			}
+			pathStart = segmentEnd + 1
 			continue
 		}
+
+		pathSegment := path[pathStart:segmentEnd]
 
 		// Try to match static route first
 		if nextNode := currentNode.children[pathSegment]; nextNode != nil {
@@ -231,12 +238,18 @@ func (n *node) matchRoute(path string, ctx *Context) handlersChain {
 		} else {
 			// Check for compound parameter patterns
 			matched := false
-			for pattern, node := range currentNode.children {
-				if strings.Contains(pattern, ".:") || strings.Contains(pattern, "-:") {
-					if matchCompoundPattern(pattern, pathSegment, ctx) {
-						currentNode = node
-						matched = true
-						break
+			// Pre-check if segment contains common delimiters to avoid unnecessary iterations
+			hasDelimiters := strings.IndexByte(pathSegment, '.') != -1 || strings.IndexByte(pathSegment, '-') != -1
+			if hasDelimiters {
+				for pattern, node := range currentNode.children {
+					// Quick pattern check using IndexByte instead of Contains
+					if (strings.IndexByte(pattern, '.') != -1 && strings.IndexByte(pattern, ':') != -1) ||
+						(strings.IndexByte(pattern, '-') != -1 && strings.IndexByte(pattern, ':') != -1) {
+						if matchCompoundPattern(pattern, pathSegment, ctx) {
+							currentNode = node
+							matched = true
+							break
+						}
 					}
 				}
 			}
@@ -255,9 +268,9 @@ func (n *node) matchRoute(path string, ctx *Context) handlersChain {
 						paramName = currentNode.param.path[1:]
 					}
 
-					// For catch-all, we want to include the entire remaining path
-					if segmentDelimiter != -1 && segmentDelimiter < pathLen {
-						ctx.paramValues[paramName] = path
+					// For catch-all, capture remaining path without creating intermediate slices
+					if segmentEnd < pathLen {
+						ctx.paramValues[paramName] = path[pathStart:]
 					} else {
 						ctx.paramValues[paramName] = pathSegment
 					}
@@ -271,10 +284,10 @@ func (n *node) matchRoute(path string, ctx *Context) handlersChain {
 			}
 		}
 
-		// Traverse to the next segment
-		path = path[segmentDelimiter:]
-		if len(path) > 0 {
-			path = path[1:] // Skip the slash
+		// Traverse to the next segment - optimized without slice creation
+		pathStart = segmentEnd
+		if pathStart < pathLen && path[pathStart] == '/' {
+			pathStart++ // Skip the slash
 		}
 	}
 }

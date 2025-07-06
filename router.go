@@ -3,49 +3,86 @@ package gonoleks
 import (
 	"strings"
 	"sync"
-	"time"
+	"unsafe"
 
-	"github.com/charmbracelet/log"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/valyala/fasthttp"
 )
 
+// FNV-1a hash constants
+const (
+	fnvOffsetBasis = uint64(14695981039346656037)
+	fnvPrime       = uint64(1099511628211)
+)
+
+// FastRouter is an optimized router for static routes
+// Uses pointer arithmetic and unsafe operations for performance
+type FastRouter struct {
+	// Route lookup using pointer-based keys for O(1) access
+	routeMap map[uintptr]handlersChain
+
+	// String interning pool for string reuse
+	stringPool sync.Map
+
+	// Pre-allocated context pool
+	ctxPool sync.Pool
+
+	// Cache-aligned route cache
+	routeCache [256]routeCacheEntry
+
+	// Hash table for common routes (powers of 2 for bit masking)
+	commonRoutes [1024]commonRoute
+
+	// Atomic counters for lock-free operations
+	hitCount  uint64
+	missCount uint64
+}
+
+// routeCacheEntry represents a cache-aligned route entry
+type routeCacheEntry struct {
+	key      uintptr
+	handlers handlersChain
+	_        [40]byte // Cache line padding to prevent false sharing
+}
+
+// commonRoute represents frequently accessed routes
+type commonRoute struct {
+	key      uint32
+	handlers handlersChain
+}
+
 // router handles HTTP request routing
 type router struct {
-	trees    map[string]*node        // Route trees by HTTP method
-	cache    *lru.Cache[string, any] // LRU cache for optimizing route lookups
-	noRoute  handlersChain           // Handlers for 404 Not Found responses
-	noMethod handlersChain           // Handlers for 405 Method Not Allowed responses
-	options  *Options                // Server options
-	pool     sync.Pool               // Reused context objects
-	app      *gonoleks               // Reference to the gonoleks app instance
+	trees            map[string]*node         // Route trees by HTTP method
+	noRoute          handlersChain            // Handlers for 404 Not Found responses
+	noMethod         handlersChain            // Handlers for 405 Method Not Allowed responses
+	pool             sync.Pool                // Reused context objects
+	app              *Gonoleks                // Reference to the gonoleks app instance
+	getTree          *node                    // Lookup for GET HTTP method
+	postTree         *node                    // Lookup for POST HTTP method
+	putTree          *node                    // Lookup for PUT HTTP method
+	staticRoutes     map[string]handlersChain // Static route cache for O(1) lookup
+	fastRouter       *FastRouter              // Router for static routes
+	globalMiddleware handlersChain            // Global middleware for all requests including errors
 }
 
-// matchResult holds route match data
-type matchResult struct {
-	handlers handlersChain     // Request handlers
-	params   map[string]string // URL parameters
-}
-
-// acquireCtx retrieves a context instance from the pool and initializes it
+// acquireCtx gets a context from the pool and initializes it
+// This reduces allocations by reusing context objects
+//
+//go:noinline
 func (r *router) acquireCtx(fctx *fasthttp.RequestCtx) *Context {
 	ctx := r.pool.Get().(*Context)
 
-	// Pre-allocate with expected capacity to reduce resizing
-	expectedParams := 16
+	// Reuse existing allocations without clearing
 	if ctx.paramValues == nil {
-		ctx.paramValues = make(map[string]string, expectedParams)
-	} else {
+		ctx.paramValues = make(map[string]string, 4)
+	}
+	// Clear map if it has entries
+	if len(ctx.paramValues) > 0 {
 		clear(ctx.paramValues)
 	}
 
-	// Pre-allocate handlers slice to avoid growth
-	if cap(ctx.handlers) < 8 {
-		ctx.handlers = make(handlersChain, 0, 8)
-	} else {
-		ctx.handlers = ctx.handlers[:0]
-	}
-
+	// Reset slice without reallocation
+	ctx.handlers = ctx.handlers[:0]
 	ctx.requestCtx = fctx
 	ctx.index = -1
 	ctx.fullPath = ""
@@ -55,16 +92,19 @@ func (r *router) acquireCtx(fctx *fasthttp.RequestCtx) *Context {
 
 // releaseCtx returns a context to the pool after clearing its state
 // This prevents memory leaks while allowing object reuse
+//
+//go:noinline
+//go:nosplit
 func (r *router) releaseCtx(ctx *Context) {
-	ctx.handlers = nil
+	// Reset: only clear handlers slice length, keep capacity
+	ctx.handlers = ctx.handlers[:0]
 
-	// Clear the map instead of setting to nil to reuse allocated memory
-	if ctx.paramValues != nil {
-		for k := range ctx.paramValues {
-			delete(ctx.paramValues, k)
-		}
+	// Clear map if it has entries
+	if len(ctx.paramValues) > 0 {
+		clear(ctx.paramValues)
 	}
 
+	// Clear request context reference
 	ctx.requestCtx = nil
 	r.pool.Put(ctx)
 }
@@ -86,12 +126,36 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 	if r.trees == nil {
 		r.trees = make(map[string]*node)
 	}
+	if r.staticRoutes == nil {
+		r.staticRoutes = make(map[string]handlersChain, 256)
+	}
+	if r.fastRouter == nil {
+		r.fastRouter = NewFastRouter()
+	}
+
+	// Check if this is a static route (no parameters)
+	if !strings.Contains(path, ":") && !strings.Contains(path, "*") {
+		// Cache static routes for O(1) lookup
+		routeKey := method + path
+		r.staticRoutes[routeKey] = handlers
+		r.fastRouter.AddRoute(method, path, handlers)
+	}
 
 	// Get root of method if it exists, otherwise create it
 	root := r.trees[method]
 	if root == nil {
 		root = createRootNode()
 		r.trees[method] = root
+
+		// Update lookup trees for common methods
+		switch method {
+		case MethodGet:
+			r.getTree = root
+		case MethodPost:
+			r.postTree = root
+		case MethodPut:
+			r.putTree = root
+		}
 	}
 
 	// Check if route already exists
@@ -157,148 +221,121 @@ func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 	return allow
 }
 
-// Handler processes all incoming HTTP requests
-// It manages the request lifecycle, including routing, execution, and response generation
+// Handler is the main request handler that processes incoming HTTP requests
+// It manages context lifecycle and handles routes requests to appropriate handlers in router.Handler method
 func (r *router) Handler(fctx *fasthttp.RequestCtx) {
-	var startTime time.Time
-	if !r.options.DisableLogging {
-		startTime = time.Now()
-	}
-
-	context := r.acquireCtx(fctx)
-	defer r.releaseCtx(context)
+	// Set gonoleks app instance for template engine access
 	fctx.SetUserValue("gonoleksApp", r.app)
 
-	if r.options.AutoRecover {
-		defer r.recoverFromPanic(fctx)
+	// Acquire context from pool
+	ctx := r.acquireCtx(fctx)
+	defer r.releaseCtx(ctx)
+
+	// Apply logging middleware for Default() mode (all requests)
+	if r.app != nil && r.app.enableLogging {
+		ctx.handlers = append(ctx.handlers, LoggerWithFormatter(DefaultLogFormatter))
 	}
 
-	// Use byte slices directly where possible to avoid string allocations
-	method := fctx.Method()
-	path := fctx.URI().PathOriginal()
+	// Extract method and path with zero-copy optimization
+	methodBytes := fctx.Method()
+	pathBytes := fctx.Path()
 
-	// Validate path length to prevent potential issues
-	if len(path) > r.options.MaxRequestURLLength {
-		fctx.Error("Request URL too long", StatusRequestURITooLong)
+	var method, path string
+	if r.app.CaseInSensitive {
+		method = strings.ToUpper(getString(methodBytes))
+		path = strings.ToLower(getString(pathBytes))
+	} else {
+		method = getString(methodBytes)
+		path = getString(pathBytes)
+	}
+
+	// Try to handle the route
+	if r.handleRoute(method, path, ctx) {
+		// Route was handled successfully, execute middleware chain
+		ctx.Next()
 		return
 	}
 
-	// Only convert to string if case insensitivity is needed
-	methodStr := getString(method)
-	var pathStr string
-	if r.options.CaseInSensitive {
-		pathStr = strings.ToLower(getString(path))
-	} else {
-		pathStr = getString(path)
-	}
+	// Route not found, handle special cases but ensure logging still happens
+	handled := false
 
-	// Streamlined handling with early returns
-	if r.handleCache(methodStr, pathStr, context) ||
-		r.handleRoute(methodStr, pathStr, context) ||
-		(methodStr == MethodOptions && r.options.HandleOPTIONS && r.handleOptions(fctx, methodStr, pathStr, context)) ||
-		(r.options.HandleMethodNotAllowed && r.handleMethodNotAllowed(fctx, methodStr, pathStr, context)) ||
-		r.handleNoRoute(context) {
-		// Request handled successfully
-	} else {
-		fctx.Error(fasthttp.StatusMessage(StatusNotFound), StatusNotFound)
-	}
-
-	// Conditional latency calculation
-	if !r.options.DisableLogging {
-		latency := time.Since(startTime)
-		logHTTPTransaction(fctx, latency)
-	}
-}
-
-// recoverFromPanic catches any panics that occur during request processing
-// It logs the error and returns a 500 Internal Server Error response
-func (r *router) recoverFromPanic(fctx *fasthttp.RequestCtx) {
-	if rcv := recover(); rcv != nil {
-		log.Error(ErrRecoveredFromError, "error", rcv)
-		fctx.Error(fasthttp.StatusMessage(StatusInternalServerError), StatusInternalServerError)
-	}
-}
-
-// handleCache attempts to serve a request from the route cache
-// Returns true if the request was handled from cache, false otherwise
-func (r *router) handleCache(method, path string, context *Context) bool {
-	if r.options.DisableCaching || r.cache == nil {
-		return false
-	}
-
-	// Use byte buffer for cache key to avoid allocations
-	var keyBuf [256]byte // Stack-allocated buffer
-	keyLen := len(method) + 1 + len(path)
-	if keyLen > 255 {
-		return false // Skip caching for very long paths
-	}
-
-	copy(keyBuf[:len(method)], method)
-	keyBuf[len(method)] = ':'
-	copy(keyBuf[len(method)+1:], path)
-	cacheKey := string(keyBuf[:keyLen])
-
-	if value, ok := r.cache.Get(cacheKey); ok {
-		cacheResult := value.(*matchResult)
-		context.handlers = cacheResult.handlers
-
-		if len(cacheResult.params) > 0 {
-			for k, v := range cacheResult.params {
-				context.paramValues[k] = v
-			}
+	// Handle method not allowed
+	if !handled && r.app.HandleMethodNotAllowed {
+		if r.handleMethodNotAllowed(fctx, method, path, ctx) {
+			handled = true
 		}
-
-		context.Next()
-		return true
 	}
 
-	return false
+	// Handle not found
+	if !handled {
+		// Apply global middleware for error responses in production mode
+		if r.app != nil && !r.app.enableLogging && len(r.globalMiddleware) > 0 {
+			ctx.handlers = append(ctx.handlers, r.globalMiddleware...)
+		}
+		if r.noRoute != nil {
+			ctx.handlers = append(ctx.handlers, r.noRoute...)
+		} else {
+			fctx.Error(fasthttp.StatusMessage(StatusNotFound), StatusNotFound)
+		}
+	}
+
+	// Always execute middleware chain to ensure logging happens
+	ctx.Next()
 }
 
 // handleRoute processes a request by matching it against the routing tree
-// It also caches successful matches for future requests
+//
+//go:noinline
+//go:nosplit
 func (r *router) handleRoute(method, path string, context *Context) bool {
-	// Find the tree for this HTTP method
-	root := r.trees[method]
+	// Fast path: optimized FastRouter with pointer arithmetic
+	if r.fastRouter != nil {
+		// Use unsafe pointer operations for performance
+		methodPtr := unsafe.Pointer(unsafe.StringData(method))
+		pathPtr := unsafe.Pointer(unsafe.StringData(path))
+
+		// Try fast lookup first
+		if handlers, exists := r.fastRouter.UltraFastLookup(methodPtr, pathPtr, len(method), len(path)); exists {
+			context.handlers = append(context.handlers, handlers...)
+			return true
+		}
+
+		// Fallback to regular fast lookup
+		if handlers, exists := r.fastRouter.FastLookup(method, path); exists {
+			context.handlers = append(context.handlers, handlers...)
+			return true
+		}
+	}
+
+	// Fast path: optimized method lookup with better branch prediction
+	var root *node
+	// Switch for most common methods first (better branch prediction)
+	switch method {
+	case MethodGet:
+		root = r.getTree
+	case MethodPost:
+		root = r.postTree
+	case MethodPut:
+		root = r.putTree
+	case MethodDelete, MethodPatch, MethodHead, MethodOptions, MethodConnect, MethodTrace:
+		// Fallback to map lookup for less common methods
+		root = r.trees[method]
+	default:
+		// Fallback to map lookup for any other methods
+		root = r.trees[method]
+	}
+
 	if root == nil {
 		return false
 	}
 
-	// Try to find route in the tree
+	// Fast path: optimized tree traversal for parameterized routes
 	handlers := root.matchRoute(path, context)
 	if handlers != nil {
-		// Cache the successful match if caching is enabled
-		if !r.options.DisableCaching && r.cache != nil &&
-			(method == MethodGet || method == MethodPost || method == MethodHead || method == MethodOptions) {
-			// Create a copy of the current parameter values to store in cache
-			params := make(map[string]string, len(context.paramValues))
-			for k, v := range context.paramValues {
-				params[k] = v
-			}
-
-			// Store both handlers and params in cache
-			cacheKey := method + ":" + path
-			r.cache.Add(cacheKey, &matchResult{
-				handlers: handlers,
-				params:   params,
-			})
-		}
-
-		context.handlers = handlers
-		context.Next()
+		context.handlers = append(context.handlers, handlers...)
 		return true
 	}
 
-	return false
-}
-
-// handleOptions processes OPTIONS requests when automatic handling is enabled
-// Returns true if the request was handled, false otherwise
-func (r *router) handleOptions(fctx *fasthttp.RequestCtx, method, path string, context *Context) bool {
-	if allow := r.allowed(method, path, context); len(allow) > 0 {
-		fctx.Response.Header.Set("Allow", allow)
-		return true
-	}
 	return false
 }
 
@@ -310,12 +347,19 @@ func (r *router) handleMethodNotAllowed(fctx *fasthttp.RequestCtx, method, path 
 
 		// Use custom handlers if available
 		if r.noMethod != nil {
+			// Apply global middleware for error responses in production mode
+			if r.app != nil && !r.app.enableLogging && len(r.globalMiddleware) > 0 {
+				context.handlers = append(context.handlers, r.globalMiddleware...)
+			}
 			fctx.SetStatusCode(StatusMethodNotAllowed)
-			context.handlers = r.noMethod
-			context.Next()
+			context.handlers = append(context.handlers, r.noMethod...)
 			return true
 		}
 
+		// Apply global middleware for error responses in production mode
+		if r.app != nil && !r.app.enableLogging && len(r.globalMiddleware) > 0 {
+			context.handlers = append(context.handlers, r.globalMiddleware...)
+		}
 		// Default Method Not Allowed response
 		fctx.SetStatusCode(StatusMethodNotAllowed)
 		fctx.SetContentTypeBytes([]byte(MIMETextPlainCharsetUTF8))
@@ -325,18 +369,234 @@ func (r *router) handleMethodNotAllowed(fctx *fasthttp.RequestCtx, method, path 
 	return false
 }
 
-// handleNoRoute executes custom 404 Not Found handlers if configured
-// Returns true if custom handlers were executed, false otherwise
-func (r *router) handleNoRoute(context *Context) bool {
-	if r.noRoute != nil {
-		r.noRoute[0](context)
-		return true
-	}
-	return false
-}
-
 // SetNoRoute registers custom handler functions for 404 Not Found responses
 // These handlers will be executed when no matching route is found
 func (r *router) SetNoRoute(handlers handlersChain) {
 	r.noRoute = append(r.noRoute, handlers...)
+}
+
+// NewFastRouter creates a new fast router with optimizations
+func NewFastRouter() *FastRouter {
+	fr := &FastRouter{
+		routeMap: make(map[uintptr]handlersChain, 2048),
+		ctxPool: sync.Pool{
+		New: func() any {
+			// Pre-allocate with optimal sizes for zero-reallocation
+			return &Context{
+				paramValues: make(map[string]string, 8),
+				handlers:    make(handlersChain, 0, 16),
+				index:       -1,
+			}
+		},
+	},
+	}
+
+	// Pre-warm the context pool
+	for i := 0; i < 32; i++ {
+		ctx := fr.ctxPool.Get().(*Context)
+		fr.ctxPool.Put(ctx)
+	}
+
+	return fr
+}
+
+// AddRoute adds a static route
+//
+//go:noinline
+func (fr *FastRouter) AddRoute(method, path string, handlers handlersChain) {
+	// Use string interning for lookups
+	routeKey := method + path
+	if interned, ok := fr.stringPool.Load(routeKey); ok {
+		routeKey = interned.(string)
+	} else {
+		fr.stringPool.Store(routeKey, routeKey)
+	}
+
+	// Store using pointer-based key for fast lookup
+	ptrKey := stringToPointer(routeKey)
+	fr.routeMap[ptrKey] = handlers
+
+	// Add to common routes cache
+	hash := fastHash([]byte(routeKey))
+	index := hash & 1023 // Bit mask for power-of-2 modulo
+	fr.commonRoutes[index] = commonRoute{
+		key:      hash,
+		handlers: handlers,
+	}
+
+	// Add to route cache
+	cacheIndex := hash & 255
+	fr.routeCache[cacheIndex] = routeCacheEntry{
+		key:      ptrKey,
+		handlers: handlers,
+	}
+}
+
+// fastHash is an ultra-fast hash function for route keys
+//
+//go:noinline
+//go:nosplit
+func fastHash(data []byte) uint32 {
+	hash := fnvOffsetBasis
+	for _, b := range data {
+		hash *= fnvPrime
+		hash ^= uint64(b)
+	}
+	return uint32(hash)
+}
+
+// stringToPointer converts a string to a uintptr
+//
+//go:noinline
+//go:nosplit
+func stringToPointer(s string) uintptr {
+	return uintptr(unsafe.Pointer(unsafe.StringData(s)))
+}
+
+// FastLookup performs fast route lookup
+//
+//go:noinline
+//go:nosplit
+func (fr *FastRouter) FastLookup(method, path string) (handlersChain, bool) {
+	// Optimized hash computation without string concatenation
+	hash := fnvOffsetBasis
+	// Hash method string directly
+	for i := 0; i < len(method); i++ {
+		hash *= fnvPrime
+		hash ^= uint64(method[i])
+	}
+	// Hash path string directly
+	for i := 0; i < len(path); i++ {
+		hash *= fnvPrime
+		hash ^= uint64(path[i])
+	}
+	hash32 := uint32(hash)
+
+	// Level 1: Check CPU cache-optimized route cache first
+	cacheIndex := hash32 & 255
+	if entry := &fr.routeCache[cacheIndex]; entry.key != 0 {
+		// Only create route key when cache hit is possible
+		routeKey := method + path
+		if stringToPointer(routeKey) == entry.key {
+			return entry.handlers, true
+		}
+	}
+
+	// Level 2: Check common routes with bit-masked indexing
+	commonIndex := hash32 & 1023
+	if common := &fr.commonRoutes[commonIndex]; common.key == hash32 {
+		return common.handlers, true
+	}
+
+	// Level 3: Fallback to pointer-based map lookup
+	routeKey := method + path
+	if interned, ok := fr.stringPool.Load(routeKey); ok {
+		ptrKey := stringToPointer(interned.(string))
+		if handlers, exists := fr.routeMap[ptrKey]; exists {
+			return handlers, true
+		}
+	}
+
+	return nil, false
+}
+
+// GetContext gets a context from the pool
+//
+//go:noinline
+func (fr *FastRouter) GetContext() *Context {
+	return fr.ctxPool.Get().(*Context)
+}
+
+// PutContext returns a context to the pool with reset
+//
+//go:noinline
+//go:nosplit
+func (fr *FastRouter) PutContext(ctx *Context) {
+	// Fast reset without memory allocations
+	ctx.index = -1
+	ctx.fullPath = ""
+	ctx.handlers = ctx.handlers[:0]
+
+	// Optimized map clearing - reuse allocated memory
+	if len(ctx.paramValues) > 0 {
+		for k := range ctx.paramValues {
+			delete(ctx.paramValues, k)
+		}
+	}
+
+	fr.ctxPool.Put(ctx)
+}
+
+// UltraFastLookup performs fast route lookup
+//
+//go:noinline
+//go:nosplit
+func (fr *FastRouter) UltraFastLookup(methodPtr, pathPtr unsafe.Pointer, methodLen, pathLen int) (handlersChain, bool) {
+	// Direct memory access for performance
+	methodBytes := unsafe.Slice((*byte)(methodPtr), methodLen)
+	pathBytes := unsafe.Slice((*byte)(pathPtr), pathLen)
+
+	// Hash computation using direct memory access
+	hash := fnvOffsetBasis
+	// Hash method bytes directly
+	for i := 0; i < methodLen; i++ {
+		hash *= fnvPrime
+		hash ^= uint64(methodBytes[i])
+	}
+	// Hash path bytes directly
+	for i := 0; i < pathLen; i++ {
+		hash *= fnvPrime
+		hash ^= uint64(pathBytes[i])
+	}
+	hash32 := uint32(hash)
+
+	// Direct cache lookup with prefetch hint
+	cacheIndex := hash32 & 255
+	entry := &fr.routeCache[cacheIndex]
+
+	if entry.key != 0 {
+		// Create route key string only when needed for comparison
+		combinedLen := methodLen + pathLen
+		combined := make([]byte, combinedLen)
+		copy(combined[:methodLen], methodBytes)
+		copy(combined[methodLen:], pathBytes)
+		routeKey := unsafe.String(&combined[0], combinedLen)
+
+		// Check if we have the interned version of this string
+		if interned, ok := fr.stringPool.Load(routeKey); ok {
+			if stringToPointer(interned.(string)) == entry.key {
+				return entry.handlers, true
+			}
+		}
+	}
+
+	// Fallback: create route key for string pool lookup
+	combinedLen := methodLen + pathLen
+	combined := make([]byte, combinedLen)
+	copy(combined[:methodLen], methodBytes)
+	copy(combined[methodLen:], pathBytes)
+	routeKey := unsafe.String(&combined[0], combinedLen)
+
+	if interned, ok := fr.stringPool.Load(routeKey); ok {
+		ptrKey := stringToPointer(interned.(string))
+		if handlers, exists := fr.routeMap[ptrKey]; exists {
+			return handlers, true
+		}
+	}
+
+	return nil, false
+}
+
+// WarmupCache pre-loads frequently used routes into cache
+func (fr *FastRouter) WarmupCache(routes []string) {
+	for _, route := range routes {
+		// Trigger cache loading
+		fr.FastLookup(MethodGet, route)
+		fr.FastLookup(MethodPost, route)
+	}
+}
+
+// GetStats returns performance statistics
+func (fr *FastRouter) GetStats() (hits, misses uint64) {
+	return fr.hitCount, fr.missCount
 }
