@@ -278,6 +278,16 @@ func (g *Gonoleks) setupRouter() {
 	g.middlewares = nil
 }
 
+// Shutdown gracefully shuts down the server
+func (g *Gonoleks) Shutdown() error {
+	err := g.httpServer.Shutdown()
+	if err == nil && g.address != "" {
+		log.Infof("Gonoleks stopped listening on %s", g.address)
+		return nil
+	}
+	return err
+}
+
 // Group creates a new router group with the specified path prefix
 func (g *Gonoleks) Group(prefix string) *RouterGroup {
 	if g.CaseInSensitive {
