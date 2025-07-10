@@ -102,7 +102,6 @@ func (c *Context) Next() {
 }
 
 // UltraNext performs fast handler execution
-// Uses optimizations for performance
 //
 //go:noinline
 //go:nosplit
@@ -123,13 +122,13 @@ func (c *Context) IsAborted() bool {
 // Abort prevents pending handlers from being called. Note that this will not stop the current handler
 // Let's say you have an authorization middleware that validates that the current request is authorized
 // If the authorization fails (ex: the password does not match), call Abort to ensure the remaining handlers
-// for this request are not called.
+// for this request are not called
 func (c *Context) Abort() {
 	c.index = len(c.handlers)
 }
 
 // AbortWithStatus calls `Abort()` and writes the headers with the specified status code
-// For example, a failed attempt to authenticate a request could use: context.AbortWithStatus(401)
+// For example, a failed attempt to authenticate a request could use: c.AbortWithStatus(401)
 func (c *Context) AbortWithStatus(code int) {
 	c.Abort()
 	c.requestCtx.Response.SetStatusCode(code)
@@ -552,7 +551,7 @@ func (c *Context) BindMultipartForm(obj any, maxMemory int64) error {
 		}
 	}
 
-	// Use gorilla/schema to decode form values into the struct
+	// Decode form values into the struct
 	err = formDecoder.Decode(obj, values)
 	if err != nil {
 		log.Error(ErrFormBindingFailed, "error", err)
@@ -784,7 +783,7 @@ func (c *Context) SetCookie(name, value string, maxAge int, path, domain string,
 	c.requestCtx.Response.Header.SetCookie(cookie)
 }
 
-// Cookie returns the named cookie provided in the request or ErrNoCookie if not found
+// Cookie returns the named cookie provided in the request or error if not found
 // And return the named cookie is unescaped
 // If multiple cookies match the given name, only one cookie will be returned
 func (c *Context) Cookie(name string) (string, error) {

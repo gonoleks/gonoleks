@@ -307,16 +307,16 @@ func TestShutdown(t *testing.T) {
 
 	t.Run("shutdown with address set", func(t *testing.T) {
 		app := New()
-		app.address = ":8080"
+		app.address = defaultPort
 		err := app.Shutdown()
 		assert.NoError(t, err, "Shutdown should not return error when address is set")
 		// Verify that the address is still set (it should not be cleared)
-		assert.Equal(t, ":8080", app.address, "Address should remain set after shutdown")
+		assert.Equal(t, defaultPort, app.address, "Address should remain set after shutdown")
 	})
 
 	t.Run("shutdown with mock server", func(t *testing.T) {
 		app := New()
-		app.address = ":8080"
+		app.address = defaultPort
 
 		// Create a mock server that will return an error on shutdown
 		mockServer := &fasthttp.Server{}

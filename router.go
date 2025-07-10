@@ -380,15 +380,15 @@ func NewFastRouter() *FastRouter {
 	fr := &FastRouter{
 		routeMap: make(map[uintptr]handlersChain, 2048),
 		ctxPool: sync.Pool{
-		New: func() any {
-			// Pre-allocate with optimal sizes for zero-reallocation
-			return &Context{
-				paramValues: make(map[string]string, 8),
-				handlers:    make(handlersChain, 0, 16),
-				index:       -1,
-			}
+			New: func() any {
+				// Pre-allocate with optimal sizes for zero-reallocation
+				return &Context{
+					paramValues: make(map[string]string, 8),
+					handlers:    make(handlersChain, 0, 16),
+					index:       -1,
+				}
+			},
 		},
-	},
 	}
 
 	// Pre-warm the context pool
