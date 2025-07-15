@@ -505,7 +505,6 @@ func (c *Context) Body() string {
 
 // GetRawData returns the raw request body data as a byte slice
 // It returns an error if the request body is nil
-// This is equivalent to Gin's GetRawData method
 func (c *Context) GetRawData() ([]byte, error) {
 	body := c.requestCtx.Request.Body()
 	if body == nil {
