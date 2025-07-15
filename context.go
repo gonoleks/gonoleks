@@ -145,7 +145,7 @@ func (c *Context) AbortWithStatusJSON(status int, jsonObj any) error {
 // AbortWithError calls `AbortWithStatus()` and logs the given error
 func (c *Context) AbortWithError(code int, err error) error {
 	c.AbortWithStatus(code)
-	log.Error(ErrRequestAbortedWithError, "error", err, "code", code)
+	log.Error("Request aborted with error", "error", err, "code", code)
 	return err
 }
 
@@ -473,8 +473,8 @@ func (c *Context) ContentType() string {
 // IsWebsocket returns true if the request headers indicate that a websocket
 // handshake is being initiated by the client
 func (c *Context) IsWebsocket() bool {
-	if strings.Contains(strings.ToLower(c.GetHeader("Connection")), "upgrade") &&
-		strings.EqualFold(c.GetHeader("Upgrade"), "websocket") {
+	if strings.Contains(strings.ToLower(c.GetHeader(HeaderConnection)), HeaderUpgrade) &&
+		strings.EqualFold(c.GetHeader(HeaderUpgrade), "websocket") {
 		return true
 	}
 	return false
@@ -569,7 +569,7 @@ func (c *Context) HTML(code int, name string, obj any) {
 
 	// Set status code and content type
 	c.requestCtx.Response.SetStatusCode(code)
-	c.requestCtx.Response.Header.Set("Content-Type", MIMETextHTMLCharsetUTF8)
+	c.requestCtx.Response.Header.Set(HeaderContentType, MIMETextHTMLCharsetUTF8)
 
 	// Render the template
 	if err := render.Render(c.requestCtx); err != nil {
@@ -769,7 +769,7 @@ func (c *Context) String(code int, format string, values ...any) *Context {
 // Returns the context instance for method chaining
 func (c *Context) Redirect(code int, location string) *Context {
 	c.requestCtx.Response.SetStatusCode(code)
-	c.requestCtx.Response.Header.Set("Location", location)
+	c.requestCtx.Response.Header.Set(HeaderLocation, location)
 	return c
 }
 
@@ -865,7 +865,7 @@ func (c *Context) NegotiateFormat(offered ...string) string {
 		return ""
 	}
 
-	acceptHeader := c.GetHeader("Accept")
+	acceptHeader := c.GetHeader(HeaderAccept)
 	if acceptHeader == "" {
 		return offered[0]
 	}
@@ -889,5 +889,5 @@ func (c *Context) NegotiateFormat(offered ...string) string {
 
 // SetAccepted sets the formats that are accepted by the client
 func (c *Context) SetAccepted(formats ...string) {
-	c.Header("Accept", strings.Join(formats, ", "))
+	c.Header(HeaderAccept, strings.Join(formats, ", "))
 }

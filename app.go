@@ -382,7 +382,7 @@ func Recovery() handlerFunc {
 	return func(c *Context) {
 		defer func() {
 			if rcv := recover(); rcv != nil {
-				log.Error(ErrRecoveredFromError, "error", rcv)
+				log.Error("Recovered from error", "error", rcv)
 				c.requestCtx.Error(fasthttp.StatusMessage(StatusInternalServerError), StatusInternalServerError)
 				c.Abort()
 			}

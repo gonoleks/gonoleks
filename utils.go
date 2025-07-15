@@ -47,14 +47,14 @@ func (h H) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 // Returns a properly formatted address string with IPv6 as default
 func resolveAddress(portStr string) string {
 	if portStr == "" {
-		log.Warnf(ErrEmptyPortFormat, defaultPort)
+		log.Warnf("Empty port format, using default port %s", defaultPort)
 		return globalIpv6Addr + defaultPort
 	}
 
 	if strings.HasPrefix(portStr, ":") {
 		portNum, err := strconv.Atoi(portStr[1:])
 		if err != nil || portNum < 1 || portNum > 65535 {
-			log.With("port", portStr).Warnf(ErrInvalidPortFormat, defaultPort)
+			log.With("port", portStr).Warnf("Invalid port format, using default port %s", defaultPort)
 			return globalIpv6Addr + defaultPort
 		}
 		// Default to IPv6 when only port is specified
@@ -68,7 +68,7 @@ func resolveAddress(portStr string) string {
 
 	// If there's no colon at all, it's invalid (port number without colon)
 	// Fall back to default port
-	log.With("port", portStr).Warnf(ErrInvalidPortFormat, defaultPort)
+	log.With("port", portStr).Warnf("Invalid port format, using default port %s", defaultPort)
 	return globalIpv6Addr + defaultPort
 }
 
@@ -76,14 +76,14 @@ func resolveAddress(portStr string) string {
 func detectNetworkProtocol(address string) string {
 	// IPv6 addresses are enclosed in brackets or contain multiple colons
 	if strings.Contains(address, "[") || strings.Count(address, ":") > 1 {
-		return "tcp6"
+		return NetworkTCP6
 	}
 	// IPv4 addresses contain dots
 	if strings.Contains(address, ".") {
-		return "tcp4"
+		return NetworkTCP4
 	}
 	// Default to IPv6 for ambiguous cases
-	return "tcp6"
+	return NetworkTCP6
 }
 
 // getBytes converts string to []byte without copying

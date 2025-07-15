@@ -343,7 +343,7 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 // Returns true if the request was handled, false otherwise
 func (r *router) handleMethodNotAllowed(fctx *fasthttp.RequestCtx, method, path string, context *Context) bool {
 	if allow := r.allowed(method, path, context); len(allow) > 0 {
-		fctx.Response.Header.Set("Allow", allow)
+		fctx.Response.Header.Set(HeaderAllow, allow)
 
 		// Use custom handlers if available
 		if r.noMethod != nil {

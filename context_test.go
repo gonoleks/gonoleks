@@ -82,19 +82,19 @@ func TestContext_Abort(t *testing.T) {
 func TestContext_AbortWithStatus(t *testing.T) {
 	ctx, requestCtx := createTestContext()
 
-	ctx.AbortWithStatus(401)
+	ctx.AbortWithStatus(StatusUnauthorized)
 	assert.True(t, ctx.IsAborted())
-	assert.Equal(t, 401, requestCtx.Response.StatusCode())
+	assert.Equal(t, StatusUnauthorized, requestCtx.Response.StatusCode())
 }
 
 func TestContext_AbortWithStatusJSON(t *testing.T) {
 	ctx, requestCtx := createTestContext()
 
-	err := ctx.AbortWithStatusJSON(401, map[string]string{"error": "unauthorized"})
+	err := ctx.AbortWithStatusJSON(StatusUnauthorized, map[string]string{"error": "unauthorized"})
 
 	assert.Nil(t, err)
 	assert.True(t, ctx.IsAborted())
-	assert.Equal(t, 401, requestCtx.Response.StatusCode())
+	assert.Equal(t, StatusUnauthorized, requestCtx.Response.StatusCode())
 	assert.Contains(t, string(requestCtx.Response.Body()), "unauthorized")
 }
 
@@ -102,11 +102,11 @@ func TestContext_AbortWithError(t *testing.T) {
 	ctx, requestCtx := createTestContext()
 
 	testErr := errors.New("test error")
-	err := ctx.AbortWithError(500, testErr)
+	err := ctx.AbortWithError(StatusInternalServerError, testErr)
 
 	assert.Equal(t, testErr, err)
 	assert.True(t, ctx.IsAborted())
-	assert.Equal(t, 500, requestCtx.Response.StatusCode())
+	assert.Equal(t, StatusInternalServerError, requestCtx.Response.StatusCode())
 }
 
 func TestContext_Set_Get_MustGet(t *testing.T) {
@@ -311,19 +311,19 @@ func TestContext_Status_Header(t *testing.T) {
 	ctx, requestCtx := createTestContext()
 
 	// Test Status
-	ctx.Status(201)
-	assert.Equal(t, 201, requestCtx.Response.StatusCode())
+	ctx.Status(StatusCreated)
+	assert.Equal(t, StatusCreated, requestCtx.Response.StatusCode())
 
 	// Test Header
-	ctx.Header("X-Test", "value")
-	assert.Equal(t, "value", string(requestCtx.Response.Header.Peek("X-Test")))
+	ctx.Header(HeaderXTest, "value")
+	assert.Equal(t, "value", string(requestCtx.Response.Header.Peek(HeaderXTest)))
 }
 
 func TestContext_GetHeader(t *testing.T) {
 	ctx, requestCtx := createTestContext()
 
-	requestCtx.Request.Header.Set("X-Test", "value")
-	assert.Equal(t, "value", ctx.GetHeader("X-Test"))
+	requestCtx.Request.Header.Set(HeaderXTest, "value")
+	assert.Equal(t, "value", ctx.GetHeader(HeaderXTest))
 	assert.Equal(t, "", ctx.GetHeader("Nonexistent"))
 }
 
@@ -359,46 +359,46 @@ func TestContext_JSON_XML_YAML_TOML(t *testing.T) {
 
 	// Test JSON
 	ctx, requestCtx := createTestContext()
-	err := ctx.JSON(200, testData)
+	err := ctx.JSON(StatusOK, testData)
 	assert.Nil(t, err)
-	assert.Equal(t, 200, requestCtx.Response.StatusCode())
+	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
 	assert.Contains(t, string(requestCtx.Response.Body()), "john")
 	assert.Contains(t, string(requestCtx.Response.Body()), "john@example.com")
 
 	// Test XML
 	ctx, requestCtx = createTestContext()
-	err = ctx.XML(200, testData)
+	err = ctx.XML(StatusOK, testData)
 	assert.Nil(t, err)
-	assert.Equal(t, 200, requestCtx.Response.StatusCode())
+	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
 	assert.Contains(t, string(requestCtx.Response.Body()), "<TestUser>")
 	assert.Contains(t, string(requestCtx.Response.Body()), "<name>john</name>")
 
 	// Test YAML
 	ctx, requestCtx = createTestContext()
-	err = ctx.YAML(200, testData)
+	err = ctx.YAML(StatusOK, testData)
 	assert.Nil(t, err)
-	assert.Equal(t, 200, requestCtx.Response.StatusCode())
+	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
 	assert.Contains(t, string(requestCtx.Response.Body()), "name: john")
 
 	// Test TOML
 	ctx, requestCtx = createTestContext()
-	err = ctx.TOML(200, testData)
+	err = ctx.TOML(StatusOK, testData)
 	assert.Nil(t, err)
-	assert.Equal(t, 200, requestCtx.Response.StatusCode())
+	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
 	assert.Contains(t, string(requestCtx.Response.Body()), "name = 'john'")
 }
 
 func TestContext_String_Data(t *testing.T) {
 	// Test String
 	ctx, requestCtx := createTestContext()
-	ctx.String(200, "Hello %s", "World")
-	assert.Equal(t, 200, requestCtx.Response.StatusCode())
+	ctx.String(StatusOK, "Hello %s", "World")
+	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
 	assert.Equal(t, "Hello World", string(requestCtx.Response.Body()))
 
 	// Test Data
 	ctx, requestCtx = createTestContext()
-	ctx.Data(200, MIMETextPlain, []byte("Hello World"))
-	assert.Equal(t, 200, requestCtx.Response.StatusCode())
+	ctx.Data(StatusOK, MIMETextPlain, []byte("Hello World"))
+	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
 	assert.Equal(t, MIMETextPlain, string(requestCtx.Response.Header.ContentType()))
 	assert.Equal(t, "Hello World", string(requestCtx.Response.Body()))
 }
@@ -406,25 +406,25 @@ func TestContext_String_Data(t *testing.T) {
 func TestContext_Redirect(t *testing.T) {
 	ctx, requestCtx := createTestContext()
 
-	ctx.Redirect(302, "https://example.com")
-	assert.Equal(t, 302, requestCtx.Response.StatusCode())
-	assert.Equal(t, "https://example.com", string(requestCtx.Response.Header.Peek("Location")))
+	ctx.Redirect(StatusFound, "https://example.com")
+	assert.Equal(t, StatusFound, requestCtx.Response.StatusCode())
+	assert.Equal(t, "https://example.com", string(requestCtx.Response.Header.Peek(HeaderLocation)))
 }
 
 func TestContext_Negotiate(t *testing.T) {
 	ctx, requestCtx := createTestContext()
 
 	// Set Accept header to prefer JSON
-	requestCtx.Request.Header.Set("Accept", MIMEApplicationJSON)
+	requestCtx.Request.Header.Set(HeaderAccept, MIMEApplicationJSON)
 
-	err := ctx.Negotiate(200, Negotiate{
+	err := ctx.Negotiate(StatusOK, Negotiate{
 		Offered:  []string{MIMEApplicationJSON, MIMEApplicationXML},
 		JSONData: map[string]string{"message": "ok"},
 		XMLData:  TestUser{Name: "john", Email: "john@example.com"},
 	})
 
 	assert.Nil(t, err)
-	assert.Equal(t, 200, requestCtx.Response.StatusCode())
+	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
 	assert.Contains(t, string(requestCtx.Response.Body()), "message")
 	assert.Contains(t, string(requestCtx.Response.Body()), "ok")
 }
@@ -433,7 +433,7 @@ func TestContext_NegotiateFormat(t *testing.T) {
 	ctx, requestCtx := createTestContext()
 
 	// Set Accept header to prefer XML
-	requestCtx.Request.Header.Set("Accept", fmt.Sprintf("%s, %s", MIMEApplicationXML, MIMEApplicationJSON))
+	requestCtx.Request.Header.Set(HeaderAccept, fmt.Sprintf("%s, %s", MIMEApplicationXML, MIMEApplicationJSON))
 
 	format := ctx.NegotiateFormat(MIMEApplicationJSON, MIMEApplicationXML, MIMETextPlain)
 	assert.Equal(t, MIMEApplicationXML, format)

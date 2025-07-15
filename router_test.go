@@ -195,7 +195,7 @@ func TestRouterHandleMethodNotAllowed(t *testing.T) {
 	assert.Equal(t, fasthttp.StatusMessage(StatusMethodNotAllowed), string(fctx.Response.Body()), "Body should contain error message")
 
 	// Verify the Allow header was set
-	allowHeader := string(fctx.Response.Header.Peek("Allow"))
+	allowHeader := string(fctx.Response.Header.Peek(HeaderAllow))
 	assert.Contains(t, allowHeader, MethodGet)
 	assert.Contains(t, allowHeader, MethodOptions)
 
@@ -243,7 +243,7 @@ func TestRouterHandler(t *testing.T) {
 	// Test handling an OPTIONS request
 	fctx = createTestRequestCtx(MethodOptions, "/test")
 	r.Handler(fctx)
-	allowHeader := string(fctx.Response.Header.Peek("Allow"))
+	allowHeader := string(fctx.Response.Header.Peek(HeaderAllow))
 	assert.Contains(t, allowHeader, MethodGet)
 
 	// Test handling a method not allowed request
@@ -364,7 +364,7 @@ func TestNewFastRouter(t *testing.T) {
 
 func TestRouter_AddRoute(t *testing.T) {
 	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(200) }
+	handler := func(c *Context) { c.Status(StatusOK) }
 	handlers := handlersChain{handler}
 
 	// Test adding a route
@@ -393,7 +393,7 @@ func TestRouter_AddRoute(t *testing.T) {
 
 func TestRouter_FastLookup(t *testing.T) {
 	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(200) }
+	handler := func(c *Context) { c.Status(StatusOK) }
 	handlers := handlersChain{handler}
 
 	// Test lookup for non-existent route
@@ -423,7 +423,7 @@ func TestRouter_FastLookup(t *testing.T) {
 
 func TestRouter_UltraFastLookup(t *testing.T) {
 	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(200) }
+	handler := func(c *Context) { c.Status(StatusOK) }
 	handlers := handlersChain{handler}
 
 	// Add a route
@@ -487,7 +487,7 @@ func TestRouter_ContextPool(t *testing.T) {
 
 func TestRouter_WarmupCache(t *testing.T) {
 	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(200) }
+	handler := func(c *Context) { c.Status(StatusOK) }
 	handlers := handlersChain{handler}
 
 	// Add some routes
@@ -573,8 +573,8 @@ func TestStringToPointer(t *testing.T) {
 
 func TestRouter_CacheCollisions(t *testing.T) {
 	fr := NewFastRouter()
-	handler1 := func(c *Context) { c.Status(200) }
-	handler2 := func(c *Context) { c.Status(201) }
+	handler1 := func(c *Context) { c.Status(StatusOK) }
+	handler2 := func(c *Context) { c.Status(StatusCreated) }
 	handlers1 := handlersChain{handler1}
 	handlers2 := handlersChain{handler2}
 
@@ -602,7 +602,7 @@ func TestRouter_CacheCollisions(t *testing.T) {
 
 func TestRouter_ConcurrentAccess(t *testing.T) {
 	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(200) }
+	handler := func(c *Context) { c.Status(StatusOK) }
 	handlers := handlersChain{handler}
 
 	// Add some initial routes
@@ -633,7 +633,7 @@ func TestRouter_ConcurrentAccess(t *testing.T) {
 
 func BenchmarkRouter_AddRoute(b *testing.B) {
 	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(200) }
+	handler := func(c *Context) { c.Status(StatusOK) }
 	handlers := handlersChain{handler}
 
 	b.ResetTimer()
@@ -647,7 +647,7 @@ func BenchmarkRouter_AddRoute(b *testing.B) {
 
 func BenchmarkRouter_FastLookup(b *testing.B) {
 	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(200) }
+	handler := func(c *Context) { c.Status(StatusOK) }
 	handlers := handlersChain{handler}
 
 	// Pre-populate with routes
@@ -667,7 +667,7 @@ func BenchmarkRouter_FastLookup(b *testing.B) {
 
 func BenchmarkRouter_UltraFastLookup(b *testing.B) {
 	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(200) }
+	handler := func(c *Context) { c.Status(StatusOK) }
 	handlers := handlersChain{handler}
 
 	// Pre-populate with routes

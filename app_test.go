@@ -263,7 +263,7 @@ func TestRun(t *testing.T) {
 	app := New()
 
 	// Find an available port
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := net.Listen(NetworkTCP, "127.0.0.1:0")
 	require.NoError(t, err, "Failed to find available port")
 	port := listener.Addr().(*net.TCPAddr).Port
 	if closeErr := listener.Close(); closeErr != nil {
