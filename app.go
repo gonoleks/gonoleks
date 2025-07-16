@@ -17,11 +17,8 @@ type Options struct {
 	// ServerName to send in response headers
 	ServerName string
 
-	// GETOnly rejects all non-GET requests if set to true
-	GETOnly bool
-
-	// CaseInSensitive enables case-insensitive routing
-	CaseInSensitive bool
+	// Concurrency is the maximum number of concurrent connections
+	Concurrency int
 
 	// ReadBufferSize is the per-connection buffer size for request reading
 	// This also limits the maximum header size
@@ -32,41 +29,6 @@ type Options struct {
 	// WriteBufferSize is the per-connection buffer size for response writing
 	WriteBufferSize int
 
-	// HandleMethodNotAllowed enables HTTP 405 Method Not Allowed responses when a route exists
-	// but the requested method is not supported, otherwise returns 404
-	HandleMethodNotAllowed bool
-
-	// MaxRequestBodySize is the maximum request body size
-	MaxRequestBodySize int
-
-	// MaxRouteParams is the maximum number of route parameters count
-	MaxRouteParams int
-
-	// MaxRequestURLLength is the maximum request URL length
-	MaxRequestURLLength int
-
-	// Concurrency is the maximum number of concurrent connections
-	Concurrency int
-
-	// Prefork spawns multiple Go processes listening on the same port when enabled
-	Prefork bool
-
-	// DisableKeepalive disables keep-alive connections, causing the server to close connections
-	// after sending the first response to client
-	DisableKeepalive bool
-
-	// DisableDefaultDate excludes the default Date header from responses when enabled
-	DisableDefaultDate bool
-
-	// DisableDefaultContentType excludes the default Content-Type header from responses when enabled
-	DisableDefaultContentType bool
-
-	// DisableDefaultServerHeader excludes the default Server header from responses when enabled
-	DisableDefaultServerHeader bool
-
-	// DisableHeaderNamesNormalizing prevents header name normalization when enabled
-	DisableHeaderNamesNormalizing bool
-
 	// ReadTimeout is the maximum time allowed to read the full request including body
 	ReadTimeout time.Duration
 
@@ -75,6 +37,44 @@ type Options struct {
 
 	// IdleTimeout is the maximum time to wait for the next request when keep-alive is enabled
 	IdleTimeout time.Duration
+
+	// MaxRequestBodySize is the maximum request body size
+	MaxRequestBodySize int
+
+	// DisableKeepalive disables keep-alive connections, causing the server to close connections
+	// after sending the first response to client
+	DisableKeepalive bool
+
+	// GETOnly rejects all non-GET requests if set to true
+	GETOnly bool
+
+	// DisableHeaderNamesNormalizing prevents header name normalization when enabled
+	DisableHeaderNamesNormalizing bool
+
+	// DisableDefaultServerHeader excludes the default Server header from responses when enabled
+	DisableDefaultServerHeader bool
+
+	// DisableDefaultDate excludes the default Date header from responses when enabled
+	DisableDefaultDate bool
+
+	// DisableDefaultContentType excludes the default Content-Type header from responses when enabled
+	DisableDefaultContentType bool
+
+	// CaseInSensitive enables case-insensitive routing
+	CaseInSensitive bool
+
+	// MaxRouteParams is the maximum number of route parameters count
+	MaxRouteParams int
+
+	// MaxRequestURLLength is the maximum request URL length
+	MaxRequestURLLength int
+
+	// HandleMethodNotAllowed enables HTTP 405 Method Not Allowed responses when a route exists
+	// but the requested method is not supported, otherwise returns 404
+	HandleMethodNotAllowed bool
+
+	// Prefork spawns multiple Go processes listening on the same port when enabled
+	Prefork bool
 }
 
 // Gonoleks is the main struct for the application
@@ -229,19 +229,19 @@ func (g *Gonoleks) runWithPrefork(address, networkProtocol string, tlsConfig *tl
 // newHTTPServer creates and configures a new fasthttp server instance
 func (g *Gonoleks) newHTTPServer() *fasthttp.Server {
 	return &fasthttp.Server{
-		Name:                          g.ServerName,
 		Handler:                       g.router.Handler,
-		ReduceMemoryUsage:             true,
+		Name:                          g.ServerName,
 		Concurrency:                   g.Concurrency,
-		DisableKeepalive:              g.DisableKeepalive,
 		ReadBufferSize:                g.ReadBufferSize,
 		WriteBufferSize:               g.WriteBufferSize,
 		ReadTimeout:                   g.ReadTimeout,
 		WriteTimeout:                  g.WriteTimeout,
 		IdleTimeout:                   g.IdleTimeout,
 		MaxRequestBodySize:            g.MaxRequestBodySize,
-		DisableHeaderNamesNormalizing: g.DisableHeaderNamesNormalizing,
+		DisableKeepalive:              g.DisableKeepalive,
+		ReduceMemoryUsage:             true,
 		GetOnly:                       g.GETOnly,
+		DisableHeaderNamesNormalizing: g.DisableHeaderNamesNormalizing,
 		NoDefaultServerHeader:         g.DisableDefaultServerHeader,
 		NoDefaultDate:                 g.DisableDefaultDate,
 		NoDefaultContentType:          g.DisableDefaultContentType,

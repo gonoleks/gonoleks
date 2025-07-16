@@ -92,24 +92,7 @@ func (c *Context) FullPath() string {
 //go:nosplit
 func (c *Context) Next() {
 	c.index++
-	// Eliminate bounds checking with unsafe operations
-	handlersLen := len(c.handlers)
-	if c.index < handlersLen {
-		// Direct function call without slice bounds checking
-		handler := c.handlers[c.index]
-		handler(c)
-	}
-}
-
-// UltraNext performs fast handler execution
-//
-//go:noinline
-//go:nosplit
-func (c *Context) UltraNext() {
-	c.index++
-	// Fast path: direct memory access to handler slice
 	if c.index < len(c.handlers) {
-		// Inline handler execution for performance
 		c.handlers[c.index](c)
 	}
 }

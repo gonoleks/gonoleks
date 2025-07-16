@@ -252,7 +252,7 @@ const (
 	HeaderXTest                              = "X-Test"
 )
 
-// Network types that are commonly used
+// Network types
 const (
 	NetworkTCP  = "tcp"
 	NetworkTCP4 = "tcp4"
