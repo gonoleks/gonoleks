@@ -21,10 +21,12 @@ go.work.sum
 # env file
 .env
 
+# macOS files
+.DS_Store
+
 # Editor/IDE
 .idea
 .vscode
-.DS_Store
 
 # Dependencies
 /vendor/
