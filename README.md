@@ -1,7 +1,10 @@
 <div align="center">
 
 <a href="https://github.com/gonoleks/gonoleks">
-  <img width="450px" alt="Gonoleks" src="assets/gonoleks-logo.png">
+  <picture>
+    <source width="450px" media="(prefers-color-scheme: dark)" srcset="assets/gonoleks-logo-dark.png">
+    <img width="450px" alt="Gonoleks" src="assets/gonoleks-logo.png">
+  </picture>
 </a>
 
 <a name="readme-top"></a>
