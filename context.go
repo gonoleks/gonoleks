@@ -443,7 +443,7 @@ func (c *Context) ClientIP() string {
 	return c.RemoteIP()
 }
 
-// RemoteIP parses the IP from Request.RemoteAddr, normalizes and returns the IP (without the port)
+// RemoteIP parses the IP from the request context, normalizes and returns the IP (without the port)
 func (c *Context) RemoteIP() string {
 	return c.requestCtx.RemoteIP().String()
 }

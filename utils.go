@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	globalIpv6Addr = "[::]"    // Default binding address for all network interfaces (IPv6)
-	globalIpv4Addr = "0.0.0.0" // Default binding address for all network interfaces (IPv4)
-	defaultPort    = ":8080"   // Default port for the server
+	globalIpv4Addr = "0.0.0.0" // Wildcard IPv4 address (binds to all interfaces)
+	globalIpv6Addr = "[::]"    // Wildcard IPv6 address (binds to all interfaces)
+	defaultPort    = ":8080"   // Fallback port
 )
 
 // H is a shortcut for map[string]any
@@ -44,21 +44,21 @@ func (h H) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 // resolveAddress validates and resolves the provided port string into a complete address
 // It handles empty ports, ports with colon prefix, and invalid port formats
-// Returns a properly formatted address string with IPv6 as default
+// Returns a properly formatted address string with IPv4 as default
 func resolveAddress(portStr string) string {
 	if portStr == "" {
 		log.Warnf("Empty port format, using default port %s", defaultPort)
-		return globalIpv6Addr + defaultPort
+		return globalIpv4Addr + defaultPort
 	}
 
 	if strings.HasPrefix(portStr, ":") {
 		portNum, err := strconv.Atoi(portStr[1:])
 		if err != nil || portNum < 1 || portNum > 65535 {
 			log.With("port", portStr).Warnf("Invalid port format, using default port %s", defaultPort)
-			return globalIpv6Addr + defaultPort
+			return globalIpv4Addr + defaultPort
 		}
-		// Default to IPv6 when only port is specified
-		return globalIpv6Addr + portStr
+		// Default to IPv4 when only port is specified
+		return globalIpv4Addr + portStr
 	}
 
 	// If it doesn't start with colon but contains colon, it's a complete address
@@ -69,7 +69,7 @@ func resolveAddress(portStr string) string {
 	// If there's no colon at all, it's invalid (port number without colon)
 	// Fall back to default port
 	log.With("port", portStr).Warnf("Invalid port format, using default port %s", defaultPort)
-	return globalIpv6Addr + defaultPort
+	return globalIpv4Addr + defaultPort
 }
 
 // detectNetworkProtocol determines the network protocol based on the address format
@@ -82,8 +82,8 @@ func detectNetworkProtocol(address string) string {
 	if strings.Contains(address, ".") {
 		return NetworkTCP4
 	}
-	// Default to IPv6 for ambiguous cases
-	return NetworkTCP6
+	// Default to IPv4 for ambiguous cases
+	return NetworkTCP4
 }
 
 // getBytes converts string to []byte without copying
