@@ -315,7 +315,7 @@ Please read the [Contributing Guide][repo_contributing_url] before contributing.
 </div>
 
 ## 📄 License
-`Gonoleks` is free and open-source software licensed under the [MIT License][repo_license_url].
+`Gonoleks` is free and open-source software licensed under the [MIT License][repo_license_url]. Official logo distributed under the [Creative Commons License][repo_cc_license_url] (CC BY-ND 4.0 International).
 
 <!-- Go links -->
 
@@ -335,6 +335,7 @@ Please read the [Contributing Guide][repo_contributing_url] before contributing.
 [repo_issues_url]: https://github.com/gonoleks/gonoleks/issues
 [repo_pull_requests_url]: https://github.com/gonoleks/gonoleks/pulls
 [repo_discussions_url]: https://github.com/orgs/gonoleks/discussions
+[repo_cc_license_url]: https://creativecommons.org/licenses/by-nd/4.0/
 
 <!-- README links -->
 
