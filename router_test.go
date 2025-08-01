@@ -507,18 +507,6 @@ func TestRouter_WarmupCache(t *testing.T) {
 	assert.Equal(t, handlers, result, "Handlers should still match after warmup")
 }
 
-func TestRouter_GetStats(t *testing.T) {
-	fr := NewFastRouter()
-
-	// Test initial stats
-	hits, misses := fr.GetStats()
-	assert.Equal(t, uint64(0), hits, "Initial hits should be 0")
-	assert.Equal(t, uint64(0), misses, "Initial misses should be 0")
-
-	// Note: The current implementation doesn't actually update hit/miss counters
-	// This test verifies the method works and returns the expected types
-}
-
 func TestFastHash(t *testing.T) {
 	// Test hash function consistency
 	data1 := []byte("GET/test")

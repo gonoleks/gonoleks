@@ -31,10 +31,6 @@ type FastRouter struct {
 
 	// Hash table for common routes (powers of 2 for bit masking)
 	commonRoutes [1024]commonRoute
-
-	// Atomic counters for lock-free operations
-	hitCount  uint64
-	missCount uint64
 }
 
 // routeCacheEntry represents a cache-aligned route entry
@@ -594,9 +590,4 @@ func (fr *FastRouter) WarmupCache(routes []string) {
 		fr.FastLookup(MethodGet, route)
 		fr.FastLookup(MethodPost, route)
 	}
-}
-
-// GetStats returns performance statistics
-func (fr *FastRouter) GetStats() (hits, misses uint64) {
-	return fr.hitCount, fr.missCount
 }
