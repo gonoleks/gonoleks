@@ -17,25 +17,17 @@ const (
 
 // MIME types
 const (
-	MIMETextXML         = "text/xml"
-	MIMETextHTML        = "text/html"
-	MIMETextPlain       = "text/plain"
-	MIMETextJavaScript  = "text/javascript"
-	MIMETextCSS         = "text/css"
-	MIMEApplicationXML  = "application/xml"
-	MIMEApplicationJSON = "application/json"
-	MIMEApplicationYAML = "application/x-yaml"
-	MIMEApplicationTOML = "application/toml"
-	MIMEApplicationCBOR = "application/cbor"
-	// Deprecated: use MIMETextJavaScript instead
-	MIMEApplicationJavaScript = "application/javascript"
+	MIMETextXML               = "text/xml"
+	MIMETextHTML              = "text/html"
+	MIMETextPlain             = "text/plain"
+	MIMETextJavaScript        = "text/javascript"
+	MIMETextCSS               = "text/css"
+	MIMEApplicationXML        = "application/xml"
+	MIMEApplicationJSON       = "application/json"
+	MIMEApplicationYAML       = "application/x-yaml"
+	MIMEApplicationTOML       = "application/toml"
 	MIMEApplicationProtoBuf   = "application/x-protobuf"
-	MIMEApplicationMsgPack    = "application/msgpack"
-	MIMEApplicationAvro       = "application/avro"
-	MIMEApplicationAvroBinary = "application/avro-binary"
-	MIMEApplicationAvroJSON   = "application/avro+json"
-	MIMEApplicationFlatBuffer = "application/flatbuffer"
-	MIMEApplicationCapnProto  = "application/capnp"
+	MIMEApplicationJavaScript = "application/javascript"
 	MIMEApplicationForm       = "application/x-www-form-urlencoded"
 	MIMEOctetStream           = "application/octet-stream"
 	MIMEMultipartForm         = "multipart/form-data"
@@ -47,8 +39,6 @@ const (
 	MIMETextCSSCharsetUTF8         = "text/css; charset=utf-8"
 	MIMEApplicationXMLCharsetUTF8  = "application/xml; charset=utf-8"
 	MIMEApplicationJSONCharsetUTF8 = "application/json; charset=utf-8"
-	// Deprecated: use MIMETextJavaScriptCharsetUTF8 instead
-	MIMEApplicationJavaScriptCharsetUTF8 = "application/javascript; charset=utf-8"
 )
 
 // HTTP status codes
