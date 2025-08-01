@@ -792,53 +792,35 @@ func (c *Context) Negotiate(code int, config Negotiate) error {
 		return ErrOfferedFormatsNotProvided
 	}
 
-	// Get the best matching format based on the Accept header
 	format := c.NegotiateFormat(config.Offered...)
 
-	// Respond with the appropriate format
-	switch format {
-	case MIMEApplicationJSON:
-		return c.JSON(code, config.JSONData)
-	case MIMEApplicationXML:
-		return c.XML(code, config.XMLData)
-	case MIMEApplicationYAML:
-		return c.YAML(code, config.YAMLData)
-	case MIMEApplicationTOML:
-		return c.TOML(code, config.TOMLData)
-	case MIMETextHTML:
-		c.HTML(code, config.HTMLName, config.HTMLData)
-		return nil
-	default:
-		// If no specific format matches, use the generic Data field
-		if config.Data != nil {
-			// Convert data to bytes
-			var data []byte
-			var contentType string
-
-			switch d := config.Data.(type) {
-			case string:
-				data = []byte(d)
-				contentType = MIMETextPlain
-			case []byte:
-				data = d
-				contentType = MIMEOctetStream
-			default:
-				// Default to JSON for other types
-				var err error
-				data, err = sonic.Marshal(config.Data)
-				if err != nil {
-					return err
-				}
-				contentType = MIMEApplicationJSON
-			}
-
-			c.Data(code, contentType, data)
+	// Map format to data and handler
+	formatMap := map[string]struct {
+		data any
+		fn   func(int, any) error
+	}{
+		MIMEApplicationJSON: {config.JSONData, c.JSON},
+		MIMEApplicationXML:  {config.XMLData, c.XML},
+		MIMEApplicationYAML: {config.YAMLData, c.YAML},
+		MIMEApplicationTOML: {config.TOMLData, c.TOML},
+		MIMETextHTML: {config.HTMLData, func(code int, data any) error {
+			c.HTML(code, config.HTMLName, data)
 			return nil
-		}
-
-		// If no format matches and no Data field, return an error
-		return ErrMatchingFormatNotFound
+		}},
 	}
+
+	if handler, exists := formatMap[format]; exists {
+		return handler.fn(code, handler.data)
+	}
+
+	// Fallback to generic data
+	if config.Data != nil {
+		data, contentType := c.convertData(config.Data)
+		c.Data(code, contentType, data)
+		return nil
+	}
+
+	return ErrMatchingFormatNotFound
 }
 
 // NegotiateFormat returns the most preferred content type from the client's Accept header
@@ -848,26 +830,35 @@ func (c *Context) NegotiateFormat(offered ...string) string {
 		return ""
 	}
 
-	acceptHeader := c.GetHeader(HeaderAccept)
-	if acceptHeader == "" {
+	accept := c.GetHeader(HeaderAccept)
+	if accept == "" {
 		return offered[0]
 	}
 
-	// Parse Accept header
-	parts := strings.Split(acceptHeader, ",")
-
-	// Simple implementation: just check if any of the offered formats
-	// are in the Accept header, in the order they appear
-	for _, part := range parts {
+	for _, part := range strings.Split(accept, ",") {
 		mimeType := strings.TrimSpace(strings.Split(part, ";")[0])
 		for _, offer := range offered {
-			if mimeType == offer {
+			if mimeType == offer || mimeType == "*/*" {
 				return offer
 			}
 		}
 	}
-
 	return ""
+}
+
+// convertData converts generic data to bytes and content type
+func (c *Context) convertData(data any) ([]byte, string) {
+	switch d := data.(type) {
+	case string:
+		return []byte(d), MIMETextPlain
+	case []byte:
+		return d, MIMEOctetStream
+	default:
+		if raw, err := sonic.Marshal(data); err == nil {
+			return raw, MIMEApplicationJSON
+		}
+		return []byte(fmt.Sprintf("%v", data)), MIMETextPlain
+	}
 }
 
 // SetAccepted sets the formats that are accepted by the client
