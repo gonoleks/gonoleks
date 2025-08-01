@@ -71,19 +71,17 @@ func (r *RouterGroup) Handle(httpMethod, path string, handlers ...handlerFunc) *
 // Any registers a route that matches all the HTTP methods
 // GET, POST, PUT, PATCH, HEAD, OPTIONS, DELETE, CONNECT, TRACE
 func (r *RouterGroup) Any(path string, handlers ...handlerFunc) []*Route {
-	routes := make([]*Route, 0, len(AllHTTPMethods))
-	for _, method := range AllHTTPMethods {
-		routes = append(routes, r.Handle(method, path, handlers...))
-	}
-	return routes
+	return r.Match(AllHTTPMethods, path, handlers...)
 }
 
 // Match registers a route that matches the specified methods that you declared
 func (r *RouterGroup) Match(methods []string, path string, handlers ...handlerFunc) []*Route {
 	routes := make([]*Route, 0, len(methods))
+
 	for _, method := range methods {
 		routes = append(routes, r.Handle(method, path, handlers...))
 	}
+
 	return routes
 }
 
