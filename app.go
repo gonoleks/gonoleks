@@ -202,7 +202,7 @@ func (g *Gonoleks) runServer(address, networkProtocol string, tlsConfig *tlsConf
 	}
 	g.address = address
 	if g.enableStartupMessage {
-		printStartupMessage(address)
+		g.printStartupMessage(address)
 	}
 
 	if tlsConfig != nil {
@@ -214,7 +214,7 @@ func (g *Gonoleks) runServer(address, networkProtocol string, tlsConfig *tlsConf
 // runWithPrefork runs the server in prefork mode
 func (g *Gonoleks) runWithPrefork(address, networkProtocol string, tlsConfig *tlsConfig) error {
 	if g.enableStartupMessage {
-		printStartupMessage(address)
+		g.printStartupMessage(address)
 	}
 	pf := prefork.New(g.httpServer)
 	pf.Reuseport = true
@@ -538,11 +538,11 @@ func (g *Gonoleks) Handler() fasthttp.RequestHandler {
 }
 
 // printStartupMessage displays server startup information in the console
-func printStartupMessage(addr string) {
+func (g *Gonoleks) printStartupMessage(addr string) {
 	if prefork.IsChild() {
 		log.Infof("Started child proc #%d", os.Getpid())
 	} else {
 		port := addr[strings.LastIndex(addr, ":"):]
-		log.Infof("Gonoleks started on %s", port)
+		log.Infof("%s started on %s", g.ServerName, port)
 	}
 }
