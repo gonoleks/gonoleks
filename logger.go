@@ -255,3 +255,18 @@ func LoggerWithConfig(conf LoggerConfig) handlerFunc {
 		}
 	}
 }
+
+// Recovery catches any panics that occur during request processing
+// It logs the error and returns a 500 Internal Server Error response
+func Recovery() handlerFunc {
+	return func(c *Context) {
+		defer func() {
+			if rcv := recover(); rcv != nil {
+				log.Error("Recovered from error", "error", rcv)
+				c.requestCtx.Error(fasthttp.StatusMessage(StatusInternalServerError), StatusInternalServerError)
+				c.Abort()
+			}
+		}()
+		c.Next()
+	}
+}

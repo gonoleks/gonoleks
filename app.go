@@ -376,21 +376,6 @@ func (g *Gonoleks) Use(middlewares ...handlerFunc) {
 	g.middlewares = append(g.middlewares, middlewares...)
 }
 
-// Recovery catches any panics that occur during request processing
-// It logs the error and returns a 500 Internal Server Error response
-func Recovery() handlerFunc {
-	return func(c *Context) {
-		defer func() {
-			if rcv := recover(); rcv != nil {
-				log.Error("Recovered from error", "error", rcv)
-				c.requestCtx.Error(fasthttp.StatusMessage(StatusInternalServerError), StatusInternalServerError)
-				c.Abort()
-			}
-		}()
-		c.Next()
-	}
-}
-
 // NoRoute registers custom handlers for 404 Not Found responses
 func (g *Gonoleks) NoRoute(handlers ...handlerFunc) {
 	g.router.noRoute = handlers
