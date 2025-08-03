@@ -10,122 +10,122 @@ type RouterGroup struct {
 }
 
 // Group creates a new sub-group with an additional prefix
-func (r *RouterGroup) Group(path string) *RouterGroup {
-	if r.app.CaseInSensitive {
+func (rg *RouterGroup) Group(path string) *RouterGroup {
+	if rg.app.CaseInSensitive {
 		path = strings.ToLower(path)
 	}
 	return &RouterGroup{
-		prefix:      r.prefix + path,
-		app:         r.app,
-		middlewares: make(handlersChain, len(r.middlewares)), // Inherit parent group middleware
+		prefix:      rg.prefix + path,
+		app:         rg.app,
+		middlewares: make(handlersChain, len(rg.middlewares)), // Inherit parent group middleware
 	}
 }
 
 // BasePath returns the base path of router group
 // For example, if group := app.Group("/rest/n/v1/api"), group.BasePath() is "/rest/n/v1/api"
-func (r *RouterGroup) BasePath() string {
-	return r.prefix
+func (rg *RouterGroup) BasePath() string {
+	return rg.prefix
 }
 
 // Use registers middleware for the group
-func (r *RouterGroup) Use(middleware ...handlerFunc) *RouterGroup {
-	r.middlewares = append(r.middlewares, middleware...)
-	return r
+func (rg *RouterGroup) Use(middleware ...handlerFunc) *RouterGroup {
+	rg.middlewares = append(rg.middlewares, middleware...)
+	return rg
 }
 
 // Handle registers a new request handle and middleware with the given path and custom HTTP method
-func (r *RouterGroup) Handle(httpMethod, path string, handlers ...handlerFunc) *Route {
-	if r.app.CaseInSensitive {
+func (rg *RouterGroup) Handle(httpMethod, path string, handlers ...handlerFunc) *Route {
+	if rg.app.CaseInSensitive {
 		path = strings.ToLower(path)
 	}
 	// Only register a default handler for the group root if there are handlers to register
-	defaultHandlers := append(r.app.middlewares, r.middlewares...)
-	if path != "/" && path != "" && !r.app.router.routeExists(httpMethod, r.prefix) && len(defaultHandlers) > 0 {
-		r.app.router.handle(httpMethod, r.prefix, defaultHandlers)
+	defaultHandlers := append(rg.app.middlewares, rg.middlewares...)
+	if path != "/" && path != "" && !rg.app.router.routeExists(httpMethod, rg.prefix) && len(defaultHandlers) > 0 {
+		rg.app.router.handle(httpMethod, rg.prefix, defaultHandlers)
 	}
 	// Combine global middleware + group middleware + route handlers
-	totalHandlers := len(r.app.middlewares) + len(r.middlewares) + len(handlers)
+	totalHandlers := len(rg.app.middlewares) + len(rg.middlewares) + len(handlers)
 	finalHandlers := make(handlersChain, totalHandlers)
 
 	// Copy global middleware first
-	copy(finalHandlers[:len(r.app.middlewares)], r.app.middlewares)
+	copy(finalHandlers[:len(rg.app.middlewares)], rg.app.middlewares)
 	// Then group middleware
-	copy(finalHandlers[len(r.app.middlewares):len(r.app.middlewares)+len(r.middlewares)], r.middlewares)
+	copy(finalHandlers[len(rg.app.middlewares):len(rg.app.middlewares)+len(rg.middlewares)], rg.middlewares)
 	// Finally route handlers
-	copy(finalHandlers[len(r.app.middlewares)+len(r.middlewares):], handlers)
+	copy(finalHandlers[len(rg.app.middlewares)+len(rg.middlewares):], handlers)
 
 	// Register the route in the router
-	r.app.router.handle(httpMethod, r.prefix+path, finalHandlers)
+	rg.app.router.handle(httpMethod, rg.prefix+path, finalHandlers)
 
 	// Create and store route information
 	route := &Route{
 		Method:   httpMethod,
-		Path:     r.prefix + path,
+		Path:     rg.prefix + path,
 		Handlers: handlers,
 	}
-	r.app.registeredRoutes = append(r.app.registeredRoutes, route)
+	rg.app.registeredRoutes = append(rg.app.registeredRoutes, route)
 
 	return route
 }
 
 // Any registers a route that matches all the HTTP methods
 // GET, POST, PUT, PATCH, HEAD, OPTIONS, DELETE, CONNECT, TRACE
-func (r *RouterGroup) Any(path string, handlers ...handlerFunc) []*Route {
-	return r.Match(AllHTTPMethods, path, handlers...)
+func (rg *RouterGroup) Any(path string, handlers ...handlerFunc) []*Route {
+	return rg.Match(AllHTTPMethods, path, handlers...)
 }
 
 // Match registers a route that matches the specified methods that you declared
-func (r *RouterGroup) Match(methods []string, path string, handlers ...handlerFunc) []*Route {
+func (rg *RouterGroup) Match(methods []string, path string, handlers ...handlerFunc) []*Route {
 	routes := make([]*Route, 0, len(methods))
 
 	for _, method := range methods {
-		routes = append(routes, r.Handle(method, path, handlers...))
+		routes = append(routes, rg.Handle(method, path, handlers...))
 	}
 
 	return routes
 }
 
 // GET registers a GET route with the group prefix
-func (r *RouterGroup) GET(path string, handlers ...handlerFunc) *Route {
-	return r.Handle(MethodGet, path, handlers...)
+func (rg *RouterGroup) GET(path string, handlers ...handlerFunc) *Route {
+	return rg.Handle(MethodGet, path, handlers...)
 }
 
 // HEAD registers a HEAD route with the group prefix
-func (r *RouterGroup) HEAD(path string, handlers ...handlerFunc) *Route {
-	return r.Handle(MethodHead, path, handlers...)
+func (rg *RouterGroup) HEAD(path string, handlers ...handlerFunc) *Route {
+	return rg.Handle(MethodHead, path, handlers...)
 }
 
 // POST registers a POST route with the group prefix
-func (r *RouterGroup) POST(path string, handlers ...handlerFunc) *Route {
-	return r.Handle(MethodPost, path, handlers...)
+func (rg *RouterGroup) POST(path string, handlers ...handlerFunc) *Route {
+	return rg.Handle(MethodPost, path, handlers...)
 }
 
 // PUT registers a PUT route with the group prefix
-func (r *RouterGroup) PUT(path string, handlers ...handlerFunc) *Route {
-	return r.Handle(MethodPut, path, handlers...)
+func (rg *RouterGroup) PUT(path string, handlers ...handlerFunc) *Route {
+	return rg.Handle(MethodPut, path, handlers...)
 }
 
 // PATCH registers a PATCH route with the group prefix
-func (r *RouterGroup) PATCH(path string, handlers ...handlerFunc) *Route {
-	return r.Handle(MethodPatch, path, handlers...)
+func (rg *RouterGroup) PATCH(path string, handlers ...handlerFunc) *Route {
+	return rg.Handle(MethodPatch, path, handlers...)
 }
 
 // DELETE registers a DELETE route with the group prefix
-func (r *RouterGroup) DELETE(path string, handlers ...handlerFunc) *Route {
-	return r.Handle(MethodDelete, path, handlers...)
+func (rg *RouterGroup) DELETE(path string, handlers ...handlerFunc) *Route {
+	return rg.Handle(MethodDelete, path, handlers...)
 }
 
 // CONNECT registers a CONNECT route with the group prefix
-func (r *RouterGroup) CONNECT(path string, handlers ...handlerFunc) *Route {
-	return r.Handle(MethodConnect, path, handlers...)
+func (rg *RouterGroup) CONNECT(path string, handlers ...handlerFunc) *Route {
+	return rg.Handle(MethodConnect, path, handlers...)
 }
 
 // OPTIONS registers an OPTIONS route with the group prefix
-func (r *RouterGroup) OPTIONS(path string, handlers ...handlerFunc) *Route {
-	return r.Handle(MethodOptions, path, handlers...)
+func (rg *RouterGroup) OPTIONS(path string, handlers ...handlerFunc) *Route {
+	return rg.Handle(MethodOptions, path, handlers...)
 }
 
 // TRACE registers a TRACE route with the group prefix
-func (r *RouterGroup) TRACE(path string, handlers ...handlerFunc) *Route {
-	return r.Handle(MethodTrace, path, handlers...)
+func (rg *RouterGroup) TRACE(path string, handlers ...handlerFunc) *Route {
+	return rg.Handle(MethodTrace, path, handlers...)
 }

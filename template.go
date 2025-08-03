@@ -46,42 +46,42 @@ func NewTemplateEngine() *TemplateEngine {
 }
 
 // SetDelims sets the template delimiters
-func (e *TemplateEngine) SetDelims(left, right string) {
-	e.mu.Lock()
-	e.delims = [2]string{left, right}
-	if e.set != nil {
-		e.recreateSet()
+func (te *TemplateEngine) SetDelims(left, right string) {
+	te.mu.Lock()
+	te.delims = [2]string{left, right}
+	if te.set != nil {
+		te.recreateSet()
 	}
-	e.mu.Unlock()
+	te.mu.Unlock()
 }
 
 // SetFuncMap sets the function map for templates
-func (e *TemplateEngine) SetFuncMap(funcMap map[string]any) {
-	e.mu.Lock()
-	e.funcMap = funcMap
-	if e.set != nil {
-		e.addFunctionsToSet()
+func (te *TemplateEngine) SetFuncMap(funcMap map[string]any) {
+	te.mu.Lock()
+	te.funcMap = funcMap
+	if te.set != nil {
+		te.addFunctionsToSet()
 	}
-	e.mu.Unlock()
+	te.mu.Unlock()
 }
 
 // LoadGlob loads templates using glob pattern
-func (e *TemplateEngine) LoadGlob(pattern string) error {
+func (te *TemplateEngine) LoadGlob(pattern string) error {
 	files, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
 	}
-	return e.LoadFiles(files...)
+	return te.LoadFiles(files...)
 }
 
 // LoadFiles loads templates from specified files
-func (e *TemplateEngine) LoadFiles(files ...string) error {
+func (te *TemplateEngine) LoadFiles(files ...string) error {
 	if len(files) == 0 {
 		return nil
 	}
 
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	te.mu.Lock()
+	defer te.mu.Unlock()
 
 	// Find the common root directory for all template files
 	var rootDir string
@@ -110,13 +110,13 @@ func (e *TemplateEngine) LoadFiles(files ...string) error {
 	loader := jet.NewOSFileSystemLoader(rootDir)
 
 	// Create Jet set with custom delimiters
-	e.set = jet.NewSet(
+	te.set = jet.NewSet(
 		loader,
-		jet.WithDelims(e.delims[0], e.delims[1]),
+		jet.WithDelims(te.delims[0], te.delims[1]),
 	)
 
 	// Add functions to the set
-	e.addFunctionsToSet()
+	te.addFunctionsToSet()
 
 	return nil
 }
@@ -131,29 +131,29 @@ func isSubPath(child, parent string) bool {
 }
 
 // recreateSet recreates the Jet set with new delimiters
-func (e *TemplateEngine) recreateSet() {
-	if e.set == nil {
+func (te *TemplateEngine) recreateSet() {
+	if te.set == nil {
 		return
 	}
 }
 
 // addFunctionsToSet adds custom functions to the Jet set
-func (e *TemplateEngine) addFunctionsToSet() {
-	if e.set == nil {
+func (te *TemplateEngine) addFunctionsToSet() {
+	if te.set == nil {
 		return
 	}
 
-	for name, fn := range e.funcMap {
-		e.set.AddGlobal(name, fn)
+	for name, fn := range te.funcMap {
+		te.set.AddGlobal(name, fn)
 	}
 }
 
 // Instance creates a render instance for the specified template
-func (e *TemplateEngine) Instance(name string, data any) Render {
+func (te *TemplateEngine) Instance(name string, data any) Render {
 	// Use read lock for better concurrency
-	e.mu.RLock()
-	set := e.set
-	e.mu.RUnlock()
+	te.mu.RLock()
+	set := te.set
+	te.mu.RUnlock()
 
 	if set == nil {
 		return &jetRender{
@@ -178,8 +178,8 @@ func (e *TemplateEngine) Instance(name string, data any) Render {
 }
 
 // Render renders the template to the writer
-func (r *jetRender) Render(w io.Writer) error {
-	if r.template == nil {
+func (jr *jetRender) Render(w io.Writer) error {
+	if jr.template == nil {
 		return ErrTemplateNotFound
 	}
 
@@ -192,12 +192,12 @@ func (r *jetRender) Render(w io.Writer) error {
 	}()
 
 	// Convert data to variables if it's a map
-	if dataMap, ok := r.data.(map[string]any); ok {
+	if dataMap, ok := jr.data.(map[string]any); ok {
 		for key, value := range dataMap {
 			vars.Set(key, value)
 		}
 	}
 
 	// Execute template
-	return r.template.Execute(w, vars, r.data)
+	return jr.template.Execute(w, vars, jr.data)
 }
