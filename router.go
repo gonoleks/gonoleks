@@ -8,34 +8,43 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-// FNV-1a hash constants
-const (
-	fnvOffsetBasis = uint64(14695981039346656037)
-	fnvPrime       = uint64(1099511628211)
-)
+// Ultra-fast route cache with CPU cache line alignment
+type ultraFastRouteCache struct {
+	// Cache-aligned entries to prevent false sharing
+	entries [512]ultraFastCacheEntry
+	// Pre-computed hash masks for bit operations
+	hashMask uint32
+}
+
+// ultraFastCacheEntry is cache-line aligned for optimal CPU performance
+type ultraFastCacheEntry struct {
+	hash     uint32        // Pre-computed hash
+	handlers handlersChain // Handler chain
+	_        [36]byte      // Padding to 64-byte cache line
+}
 
 // FastRouter is an optimized router for static routes
-// Uses pointer arithmetic and unsafe operations for performance
+// Uses hash-based lookups for zero-allocation performance
 type FastRouter struct {
-	// Route lookup using pointer-based keys for O(1) access
-	routeMap map[uintptr]handlersChain
+	// Hash-based route storage for zero allocations
+	routeHashes map[uint64]handlersChain
 
-	// String interning pool for string reuse
-	stringPool sync.Map
+	// Ultra-fast route cache with CPU cache optimization
+	ultraCache *ultraFastRouteCache
 
 	// Pre-allocated context pool
 	ctxPool sync.Pool
 
-	// Cache-aligned route cache
-	routeCache [256]routeCacheEntry
+	// Cache-aligned route cache using hashes
+	routeCache [256]hashCacheEntry
 
 	// Hash table for common routes (powers of 2 for bit masking)
 	commonRoutes [1024]commonRoute
 }
 
-// routeCacheEntry represents a cache-aligned route entry
-type routeCacheEntry struct {
-	key      uintptr
+// hashCacheEntry represents a hash-based cache entry for zero allocations
+type hashCacheEntry struct {
+	hash     uint64
 	handlers handlersChain
 	_        [40]byte // Cache line padding to prevent false sharing
 }
@@ -65,23 +74,22 @@ type router struct {
 // This reduces allocations by reusing context objects
 //
 //go:noinline
+//go:nosplit
 func (r *router) acquireCtx(fctx *fasthttp.RequestCtx) *Context {
 	ctx := r.pool.Get().(*Context)
 
-	// Reuse existing allocations without clearing
-	if ctx.paramValues == nil {
-		ctx.paramValues = make(map[string]string, 4)
-	}
-	// Clear map if it has entries
-	if len(ctx.paramValues) > 0 {
-		clear(ctx.paramValues)
-	}
-
-	// Reset slice without reallocation
-	ctx.handlers = ctx.handlers[:0]
-	ctx.requestCtx = fctx
+	// Ultra-fast context initialization without function calls
+	ctx.handlers = ctx.handlers[:0] // Reset length, keep capacity
 	ctx.index = -1
 	ctx.fullPath = ""
+	ctx.requestCtx = fctx
+
+	// Initialize or clear param values map
+	if ctx.paramValues == nil {
+		ctx.paramValues = make(map[string]string)
+	} else if len(ctx.paramValues) > 0 {
+		clear(ctx.paramValues)
+	}
 
 	return ctx
 }
@@ -92,16 +100,17 @@ func (r *router) acquireCtx(fctx *fasthttp.RequestCtx) *Context {
 //go:noinline
 //go:nosplit
 func (r *router) releaseCtx(ctx *Context) {
-	// Reset: only clear handlers slice length, keep capacity
-	ctx.handlers = ctx.handlers[:0]
+	// Ultra-fast reset: only clear what's necessary
+	ctx.handlers = ctx.handlers[:0] // Reset length, keep capacity
+	ctx.index = -1
+	ctx.fullPath = ""
+	ctx.requestCtx = nil
 
-	// Clear map if it has entries
+	// Clear map only if it has entries (performance optimization)
 	if len(ctx.paramValues) > 0 {
 		clear(ctx.paramValues)
 	}
 
-	// Clear request context reference
-	ctx.requestCtx = nil
 	r.pool.Put(ctx)
 }
 
@@ -218,7 +227,7 @@ func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 }
 
 // Handler is the main request handler that processes incoming HTTP requests
-// It manages context lifecycle and handles routes requests to appropriate handlers in router.Handler method
+// It manages context lifecycle and routes requests to appropriate handlers
 func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 	// Set gonoleks app instance for template engine access
 	fctx.SetUserValue("gonoleksApp", r.app)
@@ -284,40 +293,40 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 //go:noinline
 //go:nosplit
 func (r *router) handleRoute(method, path string, context *Context) bool {
-	// Fast path: optimized FastRouter with pointer arithmetic
+	// Ultra-fast path: Pre-computed method hash lookup
 	if r.fastRouter != nil {
-		// Use unsafe pointer operations for performance
+		// Use unsafe pointer operations for zero-allocation performance
 		methodPtr := unsafe.Pointer(unsafe.StringData(method))
 		pathPtr := unsafe.Pointer(unsafe.StringData(path))
 
-		// Try fast lookup first
+		// Try ultra-fast lookup first with CPU cache optimization
 		if handlers, exists := r.fastRouter.UltraFastLookup(methodPtr, pathPtr, len(method), len(path)); exists {
+			// Preserve existing handlers (like logger) and append route handlers
 			context.handlers = append(context.handlers, handlers...)
 			return true
 		}
 
-		// Fallback to regular fast lookup
+		// Fallback to regular fast lookup only if ultra-fast fails
 		if handlers, exists := r.fastRouter.FastLookup(method, path); exists {
+			// Preserve existing handlers (like logger) and append route handlers
 			context.handlers = append(context.handlers, handlers...)
 			return true
 		}
 	}
 
-	// Fast path: optimized method lookup with better branch prediction
+	// Optimized method lookup with branch prediction hints
 	var root *node
-	// Switch for most common methods first (better branch prediction)
+	// Reorder switch cases by frequency for better branch prediction
 	switch method {
-	case MethodGet:
+	case MethodGet: // Most common
 		root = r.getTree
-	case MethodPost:
+	case MethodPost: // Second most common
 		root = r.postTree
-	case MethodPut:
+	case MethodPut: // Third most common
 		root = r.putTree
-	case MethodDelete, MethodPatch, MethodHead, MethodOptions, MethodConnect, MethodTrace:
-		// Fallback to map lookup for less common methods
+	case MethodDelete, MethodPatch: // Less common but still frequent
 		root = r.trees[method]
-	default:
-		// Fallback to map lookup for any other methods
+	default: // Least common methods
 		root = r.trees[method]
 	}
 
@@ -325,9 +334,10 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 		return false
 	}
 
-	// Fast path: optimized tree traversal for parameterized routes
+	// Optimized tree traversal for parameterized routes
 	handlers := root.matchRoute(path, context)
 	if handlers != nil {
+		// Preserve existing handlers (like logger) and append route handlers
 		context.handlers = append(context.handlers, handlers...)
 		return true
 	}
@@ -374,7 +384,10 @@ func (r *router) SetNoRoute(handlers handlersChain) {
 // NewFastRouter creates a new fast router with optimizations
 func NewFastRouter() *FastRouter {
 	fr := &FastRouter{
-		routeMap: make(map[uintptr]handlersChain, 2048),
+		routeHashes: make(map[uint64]handlersChain, 2048),
+		ultraCache: &ultraFastRouteCache{
+			hashMask: 511, // 512 - 1 for bit masking
+		},
 		ctxPool: sync.Pool{
 			New: func() any {
 				// Pre-allocate with optimal sizes for zero-reallocation
@@ -396,57 +409,41 @@ func NewFastRouter() *FastRouter {
 	return fr
 }
 
-// AddRoute adds a static route
+// AddRoute adds a static route with zero-allocation optimizations
 //
 //go:noinline
 func (fr *FastRouter) AddRoute(method, path string, handlers handlersChain) {
-	// Use string interning for lookups
-	routeKey := method + path
-	if interned, ok := fr.stringPool.Load(routeKey); ok {
-		routeKey = interned.(string)
-	} else {
-		fr.stringPool.Store(routeKey, routeKey)
+	// Compute combined hash for zero-allocation lookup
+	methodHash := ultraFastStringHash(method)
+	pathHash := ultraFastStringHash(path)
+	combinedHash := ultraFastCombinedHash(methodHash, pathHash)
+
+	// Store using hash-based key for zero-allocation lookup
+	fr.routeHashes[combinedHash] = handlers
+
+	// Pre-compute hash for ultra-fast cache
+	hash32 := uint32(combinedHash)
+
+	// Add to ultra-fast cache with CPU cache optimization
+	cacheIndex := hash32 & fr.ultraCache.hashMask
+	fr.ultraCache.entries[cacheIndex] = ultraFastCacheEntry{
+		hash:     hash32,
+		handlers: handlers,
 	}
 
-	// Store using pointer-based key for fast lookup
-	ptrKey := stringToPointer(routeKey)
-	fr.routeMap[ptrKey] = handlers
-
-	// Add to common routes cache
-	hash := fastHash([]byte(routeKey))
-	index := hash & 1023 // Bit mask for power-of-2 modulo
+	// Add to common routes cache using optimized hash
+	index := hash32 & 1023 // Bit mask for power-of-2 modulo
 	fr.commonRoutes[index] = commonRoute{
-		key:      hash,
+		key:      hash32,
 		handlers: handlers,
 	}
 
-	// Add to route cache
-	cacheIndex := hash & 255
-	fr.routeCache[cacheIndex] = routeCacheEntry{
-		key:      ptrKey,
+	// Add to route cache using hash
+	routeCacheIndex := hash32 & 255
+	fr.routeCache[routeCacheIndex] = hashCacheEntry{
+		hash:     combinedHash,
 		handlers: handlers,
 	}
-}
-
-// fastHash is an ultra-fast hash function for route keys
-//
-//go:noinline
-//go:nosplit
-func fastHash(data []byte) uint32 {
-	hash := fnvOffsetBasis
-	for _, b := range data {
-		hash *= fnvPrime
-		hash ^= uint64(b)
-	}
-	return uint32(hash)
-}
-
-// stringToPointer converts a string to a uintptr
-//
-//go:noinline
-//go:nosplit
-func stringToPointer(s string) uintptr {
-	return uintptr(unsafe.Pointer(unsafe.StringData(s)))
 }
 
 // FastLookup performs fast route lookup
@@ -454,28 +451,16 @@ func stringToPointer(s string) uintptr {
 //go:noinline
 //go:nosplit
 func (fr *FastRouter) FastLookup(method, path string) (handlersChain, bool) {
-	// Optimized hash computation without string concatenation
-	hash := fnvOffsetBasis
-	// Hash method string directly
-	for i := 0; i < len(method); i++ {
-		hash *= fnvPrime
-		hash ^= uint64(method[i])
-	}
-	// Hash path string directly
-	for i := 0; i < len(path); i++ {
-		hash *= fnvPrime
-		hash ^= uint64(path[i])
-	}
-	hash32 := uint32(hash)
+	// Use optimized combined hash computation
+	methodHash := ultraFastStringHash(method)
+	pathHash := ultraFastStringHash(path)
+	combinedHash := ultraFastCombinedHash(methodHash, pathHash)
+	hash32 := uint32(combinedHash)
 
 	// Level 1: Check CPU cache-optimized route cache first
 	cacheIndex := hash32 & 255
-	if entry := &fr.routeCache[cacheIndex]; entry.key != 0 {
-		// Only create route key when cache hit is possible
-		routeKey := method + path
-		if stringToPointer(routeKey) == entry.key {
-			return entry.handlers, true
-		}
+	if entry := &fr.routeCache[cacheIndex]; entry.hash == combinedHash {
+		return entry.handlers, true
 	}
 
 	// Level 2: Check common routes with bit-masked indexing
@@ -484,13 +469,9 @@ func (fr *FastRouter) FastLookup(method, path string) (handlersChain, bool) {
 		return common.handlers, true
 	}
 
-	// Level 3: Fallback to pointer-based map lookup
-	routeKey := method + path
-	if interned, ok := fr.stringPool.Load(routeKey); ok {
-		ptrKey := stringToPointer(interned.(string))
-		if handlers, exists := fr.routeMap[ptrKey]; exists {
-			return handlers, true
-		}
+	// Level 3: Fallback to hash-based map lookup
+	if handlers, exists := fr.routeHashes[combinedHash]; exists {
+		return handlers, true
 	}
 
 	return nil, false
@@ -508,76 +489,57 @@ func (fr *FastRouter) GetContext() *Context {
 //go:noinline
 //go:nosplit
 func (fr *FastRouter) PutContext(ctx *Context) {
-	// Fast reset without memory allocations
-	ctx.index = -1
-	ctx.fullPath = ""
+	// Reset handlers slice length but keep capacity
 	ctx.handlers = ctx.handlers[:0]
 
-	// Optimized map clearing - reuse allocated memory
+	// Clear param values map if it has entries
 	if len(ctx.paramValues) > 0 {
-		for k := range ctx.paramValues {
-			delete(ctx.paramValues, k)
-		}
+		clear(ctx.paramValues)
 	}
+
+	// Reset index and clear full path
+	ctx.index = -1
+	ctx.fullPath = ""
 
 	fr.ctxPool.Put(ctx)
 }
 
-// UltraFastLookup performs fast route lookup
+// UltraFastLookup performs the fastest possible route lookup with zero allocations
 //
 //go:noinline
 //go:nosplit
 func (fr *FastRouter) UltraFastLookup(methodPtr, pathPtr unsafe.Pointer, methodLen, pathLen int) (handlersChain, bool) {
-	// Direct memory access for performance
-	methodBytes := unsafe.Slice((*byte)(methodPtr), methodLen)
-	pathBytes := unsafe.Slice((*byte)(pathPtr), pathLen)
+	// Compute method hash dynamically for platform independence
+	methodHash := ultraFastStringHash(unsafe.String((*byte)(methodPtr), methodLen))
 
-	// Hash computation using direct memory access
-	hash := fnvOffsetBasis
-	// Hash method bytes directly
-	for i := 0; i < methodLen; i++ {
-		hash *= fnvPrime
-		hash ^= uint64(methodBytes[i])
-	}
-	// Hash path bytes directly
-	for i := 0; i < pathLen; i++ {
-		hash *= fnvPrime
-		hash ^= uint64(pathBytes[i])
-	}
-	hash32 := uint32(hash)
+	// Fast path hash for common paths
+	pathHash := ultraFastStringHash(unsafe.String((*byte)(pathPtr), pathLen))
 
-	// Direct cache lookup with prefetch hint
+	// Combine hashes efficiently
+	combinedHash := ultraFastCombinedHash(methodHash, pathHash)
+	hash32 := uint32(combinedHash)
+
+	// Level 0: Ultra-fast cache lookup with CPU cache optimization
+	ultraIndex := hash32 & fr.ultraCache.hashMask
+	if entry := &fr.ultraCache.entries[ultraIndex]; entry.hash == hash32 {
+		return entry.handlers, true
+	}
+
+	// Level 1: Check CPU cache-optimized route cache with hash-based comparison
 	cacheIndex := hash32 & 255
-	entry := &fr.routeCache[cacheIndex]
-
-	if entry.key != 0 {
-		// Create route key string only when needed for comparison
-		combinedLen := methodLen + pathLen
-		combined := make([]byte, combinedLen)
-		copy(combined[:methodLen], methodBytes)
-		copy(combined[methodLen:], pathBytes)
-		routeKey := unsafe.String(&combined[0], combinedLen)
-
-		// Check if we have the interned version of this string
-		if interned, ok := fr.stringPool.Load(routeKey); ok {
-			if stringToPointer(interned.(string)) == entry.key {
-				return entry.handlers, true
-			}
-		}
+	if entry := &fr.routeCache[cacheIndex]; entry.hash == combinedHash {
+		return entry.handlers, true
 	}
 
-	// Fallback: create route key for string pool lookup
-	combinedLen := methodLen + pathLen
-	combined := make([]byte, combinedLen)
-	copy(combined[:methodLen], methodBytes)
-	copy(combined[methodLen:], pathBytes)
-	routeKey := unsafe.String(&combined[0], combinedLen)
+	// Level 2: Check common routes with bit-masked indexing
+	commonIndex := hash32 & 1023
+	if common := &fr.commonRoutes[commonIndex]; common.key == hash32 {
+		return common.handlers, true
+	}
 
-	if interned, ok := fr.stringPool.Load(routeKey); ok {
-		ptrKey := stringToPointer(interned.(string))
-		if handlers, exists := fr.routeMap[ptrKey]; exists {
-			return handlers, true
-		}
+	// Level 3: Final hash map lookup
+	if handlers, exists := fr.routeHashes[combinedHash]; exists {
+		return handlers, true
 	}
 
 	return nil, false

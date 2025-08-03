@@ -345,8 +345,8 @@ func TestNewFastRouter(t *testing.T) {
 
 	// Test that FastRouter is properly initialized
 	assert.NotNil(t, fr, "FastRouter should not be nil")
-	assert.NotNil(t, fr.routeMap, "routeMap should be initialized")
-	assert.NotNil(t, fr.routeMap, "routeMap should be initialized and not nil")
+	assert.NotNil(t, fr.routeHashes, "routeHashes should be initialized")
+	assert.NotNil(t, fr.ultraCache, "ultraCache should be initialized")
 
 	// Test that context pool is working
 	ctx := fr.GetContext()
@@ -370,25 +370,24 @@ func TestRouter_AddRoute(t *testing.T) {
 	// Test adding a route
 	fr.AddRoute(MethodGet, "/test", handlers)
 
-	// Verify route was added to all caches
-	routeKey := "GET/test"
-	hash := fastHash([]byte(routeKey))
+	// Verify route was added using the new hash-based system
+	methodHash := ultraFastStringHash(MethodGet)
+	pathHash := ultraFastStringHash("/test")
+	combinedHash := ultraFastCombinedHash(methodHash, pathHash)
+	hash32 := uint32(combinedHash)
 
 	// Check common routes cache
-	commonIndex := hash & 1023
-	assert.Equal(t, hash, fr.commonRoutes[commonIndex].key, "Route should be in common routes cache")
+	commonIndex := hash32 & 1023
+	assert.Equal(t, hash32, fr.commonRoutes[commonIndex].key, "Route should be in common routes cache")
 	assert.Equal(t, handlers, fr.commonRoutes[commonIndex].handlers, "Handlers should match in common routes")
 
 	// Check route cache
-	cacheIndex := hash & 255
-	assert.NotEqual(t, uintptr(0), fr.routeCache[cacheIndex].key, "Route should be in route cache")
+	cacheIndex := hash32 & 255
+	assert.Equal(t, combinedHash, fr.routeCache[cacheIndex].hash, "Route should be in route cache")
 	assert.Equal(t, handlers, fr.routeCache[cacheIndex].handlers, "Handlers should match in route cache")
 
-	// Test string interning
-	fr.AddRoute(MethodGet, "/test", handlers) // Add same route again
-	interned, ok := fr.stringPool.Load(routeKey)
-	assert.True(t, ok, "Route key should be interned")
-	assert.Equal(t, routeKey, interned.(string), "Interned string should match")
+	// Check route hashes map
+	assert.Equal(t, handlers, fr.routeHashes[combinedHash], "Route should be in route hashes map")
 }
 
 func TestRouter_FastLookup(t *testing.T) {
@@ -507,56 +506,32 @@ func TestRouter_WarmupCache(t *testing.T) {
 	assert.Equal(t, handlers, result, "Handlers should still match after warmup")
 }
 
-func TestFastHash(t *testing.T) {
+func TestUltraFastHash(t *testing.T) {
 	// Test hash function consistency
-	data1 := []byte("GET/test")
-	data2 := []byte("GET/test")
-	data3 := []byte("POST/test")
+	str1 := "GET/test"
+	str2 := "GET/test"
+	str3 := "POST/test"
 
-	hash1 := fastHash(data1)
-	hash2 := fastHash(data2)
-	hash3 := fastHash(data3)
+	hash1 := ultraFastStringHash(str1)
+	hash2 := ultraFastStringHash(str2)
+	hash3 := ultraFastStringHash(str3)
 
 	assert.Equal(t, hash1, hash2, "Same data should produce same hash")
 	assert.NotEqual(t, hash1, hash3, "Different data should produce different hash")
 
 	// Test with empty data
-	emptyHash := fastHash([]byte{})
-	assert.NotEqual(t, uint32(0), emptyHash, "Empty data should still produce a hash")
+	emptyHash := ultraFastStringHash("")
+	assert.NotEqual(t, uint64(0), emptyHash, "Empty data should still produce a hash")
 
 	// Test hash distribution (basic check)
-	hashes := make(map[uint32]bool)
+	hashes := make(map[uint64]bool)
 	for i := 0; i < 1000; i++ {
-		data := []byte("route" + string(rune(i)))
-		hash := fastHash(data)
+		str := "route" + string(rune(i))
+		hash := ultraFastStringHash(str)
 		hashes[hash] = true
 	}
 	// Should have good distribution (at least 90% unique hashes)
 	assert.Greater(t, len(hashes), 900, "Hash function should have good distribution")
-}
-
-func TestStringToPointer(t *testing.T) {
-	// Test pointer conversion consistency
-	str1 := "test string"
-	str2 := "test string"
-	str3 := "different string"
-
-	ptr1 := stringToPointer(str1)
-	ptr2 := stringToPointer(str2)
-	ptr3 := stringToPointer(str3)
-
-	// Same string content should produce same pointer
-	assert.Equal(t, ptr1, ptr2, "Same string content should produce same pointer")
-	assert.NotEqual(t, ptr1, ptr3, "Different strings should produce different pointers")
-
-	// Test with empty string - should return null pointer (0x0)
-	emptyPtr := stringToPointer("")
-	assert.Equal(t, uintptr(0), emptyPtr, "Empty string should return null pointer")
-
-	// Test with non-empty strings should return valid pointers
-	assert.NotEqual(t, uintptr(0), ptr1, "Non-empty string should return valid pointer")
-	assert.NotEqual(t, uintptr(0), ptr2, "Non-empty string should return valid pointer")
-	assert.NotEqual(t, uintptr(0), ptr3, "Non-empty string should return valid pointer")
 }
 
 func TestRouter_CacheCollisions(t *testing.T) {
@@ -616,80 +591,5 @@ func TestRouter_ConcurrentAccess(t *testing.T) {
 	// Wait for all goroutines to complete
 	for i := 0; i < 10; i++ {
 		<-done
-	}
-}
-
-func BenchmarkRouter_AddRoute(b *testing.B) {
-	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(StatusOK) }
-	handlers := handlersChain{handler}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		path := "/bench" + string(rune(i%1000)) // Cycle through 1000 different paths
-		fr.AddRoute(MethodGet, path, handlers)
-	}
-}
-
-func BenchmarkRouter_FastLookup(b *testing.B) {
-	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(StatusOK) }
-	handlers := handlersChain{handler}
-
-	// Pre-populate with routes
-	for i := 0; i < 1000; i++ {
-		path := "/bench" + string(rune(i))
-		fr.AddRoute(MethodGet, path, handlers)
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		path := "/bench" + string(rune(i%1000))
-		fr.FastLookup(MethodGet, path)
-	}
-}
-
-func BenchmarkRouter_UltraFastLookup(b *testing.B) {
-	fr := NewFastRouter()
-	handler := func(c *Context) { c.Status(StatusOK) }
-	handlers := handlersChain{handler}
-
-	// Pre-populate with routes
-	for i := 0; i < 1000; i++ {
-		path := "/bench" + string(rune(i))
-		fr.AddRoute(MethodGet, path, handlers)
-	}
-
-	method := MethodGet
-	methodPtr := unsafe.Pointer(unsafe.StringData(method))
-	methodLen := len(method)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		path := "/bench" + string(rune(i%1000))
-		pathPtr := unsafe.Pointer(unsafe.StringData(path))
-		pathLen := len(path)
-		fr.UltraFastLookup(methodPtr, pathPtr, methodLen, pathLen)
-	}
-}
-
-func BenchmarkRouter_ContextPool(b *testing.B) {
-	fr := NewFastRouter()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		ctx := fr.GetContext()
-		// Simulate some work
-		ctx.index = i
-		ctx.paramValues["test"] = "value"
-		fr.PutContext(ctx)
 	}
 }
