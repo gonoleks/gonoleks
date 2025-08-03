@@ -282,7 +282,7 @@ func (g *Gonoleks) setupRouter() {
 func (g *Gonoleks) Shutdown() error {
 	err := g.httpServer.Shutdown()
 	if err == nil && g.address != "" {
-		log.Infof("Gonoleks stopped listening on %s", g.address)
+		log.Infof("%s stopped listening on %s", g.ServerName, g.address)
 		return nil
 	}
 	return err
@@ -525,7 +525,7 @@ func (g *Gonoleks) Handler() fasthttp.RequestHandler {
 // printStartupMessage displays server startup information in the console
 func (g *Gonoleks) printStartupMessage(addr string) {
 	if prefork.IsChild() {
-		log.Infof("Started child proc #%d", os.Getpid())
+		log.Info("Worker process started", "pid", os.Getpid())
 	} else {
 		port := addr[strings.LastIndex(addr, ":"):]
 		log.Infof("%s started on %s", g.ServerName, port)
