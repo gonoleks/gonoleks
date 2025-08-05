@@ -11,7 +11,6 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/charmbracelet/log"
-	"github.com/pelletier/go-toml/v2"
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
@@ -30,18 +29,6 @@ type Context struct {
 	handlers    handlersChain
 	index       int
 	fullPath    string
-}
-
-// Negotiate contains the information for content negotiation
-type Negotiate struct {
-	Offered  []string
-	HTMLName string
-	HTMLData any
-	JSONData any
-	XMLData  any
-	YAMLData any
-	TOMLData any
-	Data     any
 }
 
 // Context returns the underlying fasthttp RequestCtx object
@@ -698,22 +685,6 @@ func (c *Context) YAML(code int, obj any) error {
 	return nil
 }
 
-// TOML serializes the provided data to TOML format and sets it as the response body
-// It automatically sets the Content-Type header to "application/toml"
-func (c *Context) TOML(code int, obj any) error {
-	c.requestCtx.Response.SetStatusCode(code)
-	c.requestCtx.Response.Header.SetContentType(MIMEApplicationTOML)
-
-	raw, err := toml.Marshal(obj)
-	if err != nil {
-		log.Error(ErrTOMLMarshalingFailed, "error", err)
-		return fmt.Errorf("%v: %w", ErrTOMLMarshal, err)
-	}
-
-	c.requestCtx.Response.SetBodyRaw(raw)
-	return nil
-}
-
 // ProtoBuf serializes the provided data to Protocol Buffer format and sets it as the response body
 // It automatically sets the Content-Type header to "application/x-protobuf"
 // The data parameter must implement the proto.Message interface
@@ -783,82 +754,6 @@ func (c *Context) FileAttachment(filePath, fileName string) {
 
 	// Use SendFile for efficient file serving
 	c.requestCtx.SendFile(filePath)
-}
-
-// Negotiate performs content negotiation based on the Accept header
-// It selects the best matching format from the offered formats and responds with the appropriate data
-func (c *Context) Negotiate(code int, config Negotiate) error {
-	if len(config.Offered) == 0 {
-		return ErrOfferedFormatsNotProvided
-	}
-
-	format := c.NegotiateFormat(config.Offered...)
-
-	// Map format to data and handler
-	formatMap := map[string]struct {
-		data any
-		fn   func(int, any) error
-	}{
-		MIMEApplicationJSON: {config.JSONData, c.JSON},
-		MIMEApplicationXML:  {config.XMLData, c.XML},
-		MIMEApplicationYAML: {config.YAMLData, c.YAML},
-		MIMEApplicationTOML: {config.TOMLData, c.TOML},
-		MIMETextHTML: {config.HTMLData, func(code int, data any) error {
-			c.HTML(code, config.HTMLName, data)
-			return nil
-		}},
-	}
-
-	if handler, exists := formatMap[format]; exists {
-		return handler.fn(code, handler.data)
-	}
-
-	// Fallback to generic data
-	if config.Data != nil {
-		data, contentType := c.convertData(config.Data)
-		c.Data(code, contentType, data)
-		return nil
-	}
-
-	return ErrMatchingFormatNotFound
-}
-
-// NegotiateFormat returns the most preferred content type from the client's Accept header
-// If none of the offered formats match, returns an empty string
-func (c *Context) NegotiateFormat(offered ...string) string {
-	if len(offered) == 0 {
-		return ""
-	}
-
-	accept := c.GetHeader(HeaderAccept)
-	if accept == "" {
-		return offered[0]
-	}
-
-	for _, part := range strings.Split(accept, ",") {
-		mimeType := strings.TrimSpace(strings.Split(part, ";")[0])
-		for _, offer := range offered {
-			if mimeType == offer || mimeType == "*/*" {
-				return offer
-			}
-		}
-	}
-	return ""
-}
-
-// convertData converts generic data to bytes and content type
-func (c *Context) convertData(data any) ([]byte, string) {
-	switch d := data.(type) {
-	case string:
-		return []byte(d), MIMETextPlain
-	case []byte:
-		return d, MIMEOctetStream
-	default:
-		if raw, err := sonic.Marshal(data); err == nil {
-			return raw, MIMEApplicationJSON
-		}
-		return []byte(fmt.Sprintf("%v", data)), MIMETextPlain
-	}
 }
 
 // SetAccepted sets the formats that are accepted by the client

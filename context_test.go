@@ -2,7 +2,6 @@ package gonoleks
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -303,8 +302,8 @@ func TestContext_PostFormMap_GetPostFormMap(t *testing.T) {
 }
 
 type TestUser struct {
-	Name  string `json:"name" xml:"name" form:"name" yaml:"name" toml:"name"`
-	Email string `json:"email" xml:"email" form:"email" yaml:"email" toml:"email"`
+	Name  string `json:"name" xml:"name" form:"name" yaml:"name"`
+	Email string `json:"email" xml:"email" form:"email" yaml:"email"`
 }
 
 func TestContext_Status_Header(t *testing.T) {
@@ -354,7 +353,7 @@ func TestContext_Cookie_SetCookie(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestContext_JSON_XML_YAML_TOML(t *testing.T) {
+func TestContext_JSON_XML_YAML(t *testing.T) {
 	testData := TestUser{Name: "john", Email: "john@example.com"}
 
 	// Test JSON
@@ -379,13 +378,6 @@ func TestContext_JSON_XML_YAML_TOML(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
 	assert.Contains(t, string(requestCtx.Response.Body()), "name: john")
-
-	// Test TOML
-	ctx, requestCtx = createTestContext()
-	err = ctx.TOML(StatusOK, testData)
-	assert.Nil(t, err)
-	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
-	assert.Contains(t, string(requestCtx.Response.Body()), "name = 'john'")
 }
 
 func TestContext_String_Data(t *testing.T) {
@@ -411,43 +403,10 @@ func TestContext_Redirect(t *testing.T) {
 	assert.Equal(t, "https://example.com", string(requestCtx.Response.Header.Peek(HeaderLocation)))
 }
 
-func TestContext_Negotiate(t *testing.T) {
-	ctx, requestCtx := createTestContext()
-
-	// Set Accept header to prefer JSON
-	requestCtx.Request.Header.Set(HeaderAccept, MIMEApplicationJSON)
-
-	err := ctx.Negotiate(StatusOK, Negotiate{
-		Offered:  []string{MIMEApplicationJSON, MIMEApplicationXML},
-		JSONData: map[string]string{"message": "ok"},
-		XMLData:  TestUser{Name: "john", Email: "john@example.com"},
-	})
-
-	assert.Nil(t, err)
-	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
-	assert.Contains(t, string(requestCtx.Response.Body()), "message")
-	assert.Contains(t, string(requestCtx.Response.Body()), "ok")
-}
-
-func TestContext_NegotiateFormat(t *testing.T) {
-	ctx, requestCtx := createTestContext()
-
-	// Set Accept header to prefer XML
-	requestCtx.Request.Header.Set(HeaderAccept, fmt.Sprintf("%s, %s", MIMEApplicationXML, MIMEApplicationJSON))
-
-	format := ctx.NegotiateFormat(MIMEApplicationJSON, MIMEApplicationXML, MIMETextPlain)
-	assert.Equal(t, MIMEApplicationXML, format)
-
-	// Test with no matching format
-	format = ctx.NegotiateFormat(MIMETextHTML)
-	assert.Equal(t, "", format)
-}
-
 func TestContext_SetAccepted(t *testing.T) {
-	ctx, _ := createTestContext()
+	ctx, requestCtx := createTestContext()
 
 	ctx.SetAccepted(MIMEApplicationJSON, MIMEApplicationXML)
-
-	format := ctx.NegotiateFormat(MIMEApplicationJSON, MIMEApplicationXML)
-	assert.Equal(t, MIMEApplicationJSON, format)
+	acceptHeader := string(requestCtx.Response.Header.Peek(HeaderAccept))
+	assert.Equal(t, "application/json, application/xml", acceptHeader)
 }
