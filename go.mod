@@ -8,7 +8,6 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/log v0.4.2
 	github.com/muesli/termenv v0.16.0
-	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/stretchr/testify v1.10.0
 	github.com/valyala/fasthttp v1.64.0
 	google.golang.org/protobuf v1.36.6
