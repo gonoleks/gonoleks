@@ -11,7 +11,7 @@
 
 # Gonoleks
 
-🐦‍⬛🐦‍⬛🐦‍⬛ **Gonoleks** is a modern, high-performance **micro-framework** written in [Go][go_url].<br/>It features a [Gin][gin_url] inspired API with lightning-faster **performance**.<br/>Built on [fasthttp][fasthttp_url], the **fastest** HTTP engine for Go.
+🐦‍⬛🐦‍⬛🐦‍⬛ **Gonoleks** is a modern, high-performance **web framework** written in [Go][go_url].<br/>It features a [Gin][gin_url] inspired API with lightning-faster **performance**.<br/>Built on [fasthttp][fasthttp_url], the **fastest** HTTP engine for Go.
 
 [![Go version][go_version_img]][go_dev_url]
 [![Go report][go_report_img]][go_report_url]
@@ -74,7 +74,7 @@ Visit `http://localhost:3000` to see your app in action.
 
 ## 📖 Examples
 
-Listed below are some of the common examples. More available in our [Examples Repository][examples_url].
+Listed below are some of the common examples.
 
 ### Route Parameters
 
