@@ -250,20 +250,6 @@ const (
 	NetworkUnix = "unix"
 )
 
-// AllHTTPMethods lists all standard HTTP methods
-// Used by app.Any to register a handler for any HTTP method
-var AllHTTPMethods = []string{
-	MethodGet,
-	MethodPost,
-	MethodPut,
-	MethodPatch,
-	MethodHead,
-	MethodOptions,
-	MethodDelete,
-	MethodConnect,
-	MethodTrace,
-}
-
 // Errors
 var (
 	ErrJSONMarshalingFailed         = errors.New("JSON marshaling failed")

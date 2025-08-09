@@ -163,27 +163,7 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 		}
 	}
 
-	// Check if route already exists
-	if r.routeExists(method, path) {
-		return
-	}
-
 	root.addRoute(path, handlers)
-}
-
-// routeExists checks if a route with the given method and path already exists
-// Returns true if the route is found, false otherwise
-func (r *router) routeExists(method, path string) bool {
-	if root := r.trees[method]; root != nil {
-		// Create a temporary context to check if the route exists
-		tempCtx := &Context{
-			paramValues: make(map[string]string),
-		}
-		if handlers := root.matchRoute(path, tempCtx); handlers != nil {
-			return true
-		}
-	}
-	return false
 }
 
 // allowed determines which HTTP methods are supported for a given path

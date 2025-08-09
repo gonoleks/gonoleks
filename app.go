@@ -79,6 +79,7 @@ type Options struct {
 
 // Gonoleks is the main struct for the application
 type Gonoleks struct {
+	RouteHandler
 	httpServer           *fasthttp.Server
 	router               *router
 	registeredRoutes     []*Route
@@ -122,6 +123,13 @@ func createInstance(debugMode bool) *Gonoleks {
 		enableLogging:        debugMode,
 		secureJsonPrefix:     "while(1);",
 		Options:              defaultOptions(),
+	}
+
+	// Initialize the embedded RouteHandler
+	g.RouteHandler = RouteHandler{
+		app:         g,
+		prefix:      "",
+		middlewares: make(handlersChain, 0),
 	}
 
 	g.router = &router{
@@ -288,92 +296,10 @@ func (g *Gonoleks) Shutdown() error {
 	return err
 }
 
-// Group creates a new router group with the specified path prefix
-func (g *Gonoleks) Group(prefix string) *RouterGroup {
-	if g.CaseInSensitive {
-		prefix = strings.ToLower(prefix)
-	}
-
-	// Return a new RouterGroup for chaining
-	return &RouterGroup{
-		prefix:      prefix,
-		app:         g,
-		middlewares: make(handlersChain, 0),
-	}
-}
-
-// Static serves static files from the specified root directory under the given URL prefix
-func (g *Gonoleks) Static(path, root string) {
-	if g.CaseInSensitive {
-		path = strings.ToLower(path)
-	}
-
-	// Remove trailing slashes
-	root = strings.TrimSuffix(root, "/")
-	path = strings.TrimSuffix(path, "/")
-
-	fs := &fasthttp.FS{
-		Root:       root,
-		IndexNames: []string{"index.html"},
-		PathRewrite: func(c *fasthttp.RequestCtx) []byte {
-			requestPath := c.Path()
-			if len(requestPath) >= len(path) {
-				// Remove the route prefix from the request path
-				requestPath = requestPath[len(path):]
-			}
-			if len(requestPath) == 0 {
-				return []byte("/")
-			}
-			if requestPath[0] != '/' {
-				return append([]byte("/"), requestPath...)
-			}
-			return requestPath
-		},
-	}
-
-	fileHandler := fs.NewRequestHandler()
-	handler := func(c *Context) {
-		fctx := c.Context()
-		fileHandler(fctx)
-		status := fctx.Response.StatusCode()
-		if status != StatusNotFound && status != StatusForbidden {
-			return
-		}
-
-		// Pass to custom not found handlers if available
-		if len(g.router.noRoute) > 0 {
-			g.router.noRoute[0](c)
-			return
-		}
-
-		// Default Not Found response
-		fctx.Error(fasthttp.StatusMessage(StatusNotFound), StatusNotFound)
-	}
-
-	g.GET(path, handler)
-
-	if len(path) > 0 && path[len(path)-1] != '*' {
-		g.GET(path+"/*", handler)
-	}
-}
-
-// StaticFile registers a single route in order to serve a single file of the local filesystem
-// Example: app.StaticFile("favicon.ico", "./resources/favicon.ico")
-func (g *Gonoleks) StaticFile(path, filepath string) {
-	if g.CaseInSensitive {
-		path = strings.ToLower(path)
-	}
-
-	handler := func(c *Context) {
-		c.File(filepath)
-	}
-
-	g.GET(path, handler)
-}
-
 // Use registers global middleware functions to be executed for all routes
-func (g *Gonoleks) Use(middlewares ...handlerFunc) {
+func (g *Gonoleks) Use(middlewares ...handlerFunc) IRoutes {
 	g.middlewares = append(g.middlewares, middlewares...)
+	return g
 }
 
 // NoRoute registers custom handlers for 404 Not Found responses
@@ -429,91 +355,6 @@ func (g *Gonoleks) Delims(left, right string) {
 		g.htmlRender = NewTemplateEngine()
 	}
 	g.htmlRender.(*TemplateEngine).SetDelims(left, right)
-}
-
-// Handle registers a new request handle and middleware with the given path and custom HTTP method
-// The last handler should be the real handler, the other ones should be middleware
-func (g *Gonoleks) Handle(httpMethod, path string, handlers ...handlerFunc) *Route {
-	totalHandlers := len(g.middlewares) + len(handlers)
-	finalHandlers := make(handlersChain, totalHandlers)
-
-	copy(finalHandlers[:len(g.middlewares)], g.middlewares)
-	copy(finalHandlers[len(g.middlewares):], handlers)
-
-	// Register the route in the router
-	g.router.handle(httpMethod, path, finalHandlers)
-
-	// Create and store route information
-	route := &Route{
-		Method:   httpMethod,
-		Path:     path,
-		Handlers: handlers,
-	}
-	g.registeredRoutes = append(g.registeredRoutes, route)
-
-	return route
-}
-
-// Any registers a route that matches all the HTTP methods
-// GET, POST, PUT, PATCH, HEAD, OPTIONS, DELETE, CONNECT, TRACE
-func (g *Gonoleks) Any(path string, handlers ...handlerFunc) []*Route {
-	return g.Match(AllHTTPMethods, path, handlers...)
-}
-
-// Match registers a route that matches the specified methods that you declared
-func (g *Gonoleks) Match(methods []string, path string, handlers ...handlerFunc) []*Route {
-	routes := make([]*Route, 0, len(methods))
-
-	for _, method := range methods {
-		routes = append(routes, g.Handle(method, path, handlers...))
-	}
-
-	return routes
-}
-
-// GET registers a route for the HTTP GET method
-func (g *Gonoleks) GET(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodGet, path, handlers)
-}
-
-// HEAD registers a route for the HTTP HEAD method
-func (g *Gonoleks) HEAD(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodHead, path, handlers)
-}
-
-// POST registers a route for the HTTP POST method
-func (g *Gonoleks) POST(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodPost, path, handlers)
-}
-
-// PUT registers a route for the HTTP PUT method
-func (g *Gonoleks) PUT(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodPut, path, handlers)
-}
-
-// PATCH registers a route for the HTTP PATCH method
-func (g *Gonoleks) PATCH(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodPatch, path, handlers)
-}
-
-// DELETE registers a route for the HTTP DELETE method
-func (g *Gonoleks) DELETE(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodDelete, path, handlers)
-}
-
-// CONNECT registers a route for the HTTP CONNECT method
-func (g *Gonoleks) CONNECT(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodConnect, path, handlers)
-}
-
-// OPTIONS registers a route for the HTTP OPTIONS method
-func (g *Gonoleks) OPTIONS(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodOptions, path, handlers)
-}
-
-// TRACE registers a route for the HTTP TRACE method
-func (g *Gonoleks) TRACE(path string, handlers ...handlerFunc) *Route {
-	return g.registerRoute(MethodTrace, path, handlers)
 }
 
 // Handler returns the fasthttp.RequestHandler for the gonoleks instance

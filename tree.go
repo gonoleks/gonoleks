@@ -74,7 +74,7 @@ func (n *node) addRoute(path string, handlers handlersChain) {
 		} else if pathSegment[0] == ':' || pathSegment[0] == '*' {
 			currentNode = n.handleParameterSegment(currentNode, pathSegment, originalPath, paramNames)
 		} else {
-			currentNode = n.handleStaticSegment(currentNode, pathSegment, originalPath)
+			currentNode = n.handleStaticSegment(currentNode, pathSegment)
 		}
 
 		// Traverse to the next segment
@@ -131,12 +131,8 @@ func (n *node) handleParameterSegment(currentNode *node, pathSegment, originalPa
 }
 
 // handleStaticSegment processes literal path segments (non-parameter parts)
-// It validates for conflicts with parameter nodes and creates or reuses static nodes
-func (n *node) handleStaticSegment(currentNode *node, pathSegment, originalPath string) *node {
-	if currentNode.param != nil {
-		panic("static path segment " + pathSegment + " conflicts with existing wildcard " + currentNode.param.path + " in path '" + originalPath + "'")
-	}
-
+// It allows static routes to coexist with parameter routes, with static routes taking precedence during matching
+func (n *node) handleStaticSegment(currentNode *node, pathSegment string) *node {
 	childNode := currentNode.children[pathSegment]
 	if childNode == nil {
 		childNode = &node{
@@ -211,7 +207,11 @@ func (n *node) matchRoute(path string, ctx *Context) handlersChain {
 	for {
 		pathLen := len(path)
 		if pathStart >= pathLen {
-			return currentNode.handlers
+			// If we've reached the end of the path, check if current node has handlers
+			if currentNode.handlers != nil {
+				return currentNode.handlers
+			}
+			return nil
 		}
 
 		// Fast path: use strings.IndexByte for optimized slash finding
