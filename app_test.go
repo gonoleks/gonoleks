@@ -151,27 +151,6 @@ func TestMatchMethod(t *testing.T) {
 	assert.False(t, registeredMethods[MethodPatch], "PATCH method should not be registered")
 }
 
-func TestGroup(t *testing.T) {
-	app := New()
-
-	// Create a group
-	group := app.Group("/api")
-	assert.NotNil(t, group, "Group() should return a non-nil RouterGroup")
-
-	// Register routes on the group
-	route := group.GET("/users", func(c *Context) {})
-	assert.NotNil(t, route, "Group.GET() should return a non-nil route")
-	assert.Equal(t, "/api/users", route.Path, "Group route path should be prefixed with group path")
-
-	// Test nested groups
-	v1 := group.Group("/v1")
-	assert.NotNil(t, v1, "Nested Group() should return a non-nil RouterGroup")
-
-	route = v1.POST("/posts", func(c *Context) {})
-	assert.NotNil(t, route, "Nested Group.POST() should return a non-nil route")
-	assert.Equal(t, "/api/v1/posts", route.Path, "Nested group route path should have all prefixes")
-}
-
 func TestMiddleware(t *testing.T) {
 	app := New()
 

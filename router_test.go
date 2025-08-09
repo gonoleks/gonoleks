@@ -68,21 +68,27 @@ func TestRouterHandle(t *testing.T) {
 	}, "Empty handlers should panic")
 }
 
-func TestRouterRouteExists(t *testing.T) {
+func TestRouterRouteHandling(t *testing.T) {
 	r := createTestRouter()
 	handler := func(c *Context) {}
 
 	// Register a route
 	r.handle(MethodGet, "/test", handlersChain{handler})
 
-	// Test existing route
-	assert.True(t, r.routeExists(MethodGet, "/test"), "Route should exist")
+	// Test that the route tree was created
+	assert.NotNil(t, r.trees[MethodGet], "GET tree should be created")
 
-	// Test non-existing route
-	assert.False(t, r.routeExists(MethodGet, "/nonexistent"), "Route should not exist")
+	// Test that we can handle the registered route
+	ctx := &Context{paramValues: make(map[string]string)}
+	assert.True(t, r.handleRoute(MethodGet, "/test", ctx), "Registered route should be handled")
 
-	// Test non-existing method
-	assert.False(t, r.routeExists(MethodPost, "/test"), "Route with different method should not exist")
+	// Test that non-existing route is not handled
+	ctx = &Context{paramValues: make(map[string]string)}
+	assert.False(t, r.handleRoute(MethodGet, "/nonexistent", ctx), "Non-existing route should not be handled")
+
+	// Test that route with different method is not handled
+	ctx = &Context{paramValues: make(map[string]string)}
+	assert.False(t, r.handleRoute(MethodPost, "/test", ctx), "Route with different method should not be handled")
 }
 
 func TestRouterAllowed(t *testing.T) {

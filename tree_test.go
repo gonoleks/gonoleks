@@ -109,12 +109,12 @@ func TestHandleStaticSegment(t *testing.T) {
 	root := createRootNode()
 
 	// Test handling a static segment
-	staticNode := root.handleStaticSegment(root, "users", "/users")
+	staticNode := root.handleStaticSegment(root, "users")
 	assert.Equal(t, "users", staticNode.path, "Static path should be 'users'")
 	assert.Equal(t, static, staticNode.nType, "Node type should be static")
 
 	// Test handling the same static segment again (should return existing node)
-	sameNode := root.handleStaticSegment(root, "users", "/users")
+	sameNode := root.handleStaticSegment(root, "users")
 	assert.Same(t, staticNode, sameNode, "Should return the same node for the same segment")
 
 	// Create a node with a parameter child
@@ -129,10 +129,12 @@ func TestHandleStaticSegment(t *testing.T) {
 		},
 	}
 
-	// Test handling a static segment on a node with a parameter (should panic)
-	assert.Panics(t, func() {
-		root.handleStaticSegment(nodeWithParam, "static", "/test/static")
-	}, "Handling a static segment on a node with a parameter should panic")
+	// Test handling a static segment on a node with a parameter (should now be allowed)
+	assert.NotPanics(t, func() {
+		staticNodeWithParam := root.handleStaticSegment(nodeWithParam, "static")
+		assert.Equal(t, "static", staticNodeWithParam.path, "Static path should be 'static'")
+		assert.Equal(t, static, staticNodeWithParam.nType, "Node type should be static")
+	}, "Handling a static segment on a node with a parameter should be allowed")
 }
 
 func TestHandleCompoundSegment(t *testing.T) {
@@ -367,10 +369,10 @@ func TestAddRouteConflicts(t *testing.T) {
 			expectedPanic: true,
 		},
 		{
-			name:          "Static and parameter conflict",
+			name:          "Static and parameter coexistence",
 			firstRoute:    "/users/:id",
 			secondRoute:   "/users/profile",
-			expectedPanic: true,
+			expectedPanic: false,
 		},
 		{
 			name:          "Catch-all and parameter conflict",
