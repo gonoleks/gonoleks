@@ -320,16 +320,16 @@ Please read the [Contributing Guide][repo_contributing_url] before contributing.
 <!-- Go links -->
 
 [go_url]: https://go.dev
-[go_version_img]: https://img.shields.io/badge/Go-1.23+-79d4fd?style=for-the-badge&logo=go&logoColor=79d4fd
-[go_report_img]: https://img.shields.io/badge/Go_report-A+-73db8c?style=for-the-badge
+[go_version_img]: https://img.shields.io/badge/Go-1.23+-79d4fd?style=for-the-badge&logo=go&logoColor=79d4fd&labelColor=59636e
+[go_report_img]: https://img.shields.io/badge/Go_report-A+-73db8c?style=for-the-badge&labelColor=59636e
 [go_report_url]: https://goreportcard.com/report/github.com/gonoleks/gonoleks
 [go_dev_url]: https://pkg.go.dev/github.com/gonoleks/gonoleks
 
 <!-- Repository links -->
 
 [repo_url]: https://github.com/gonoleks/gonoleks
-[repo_release_img]: https://img.shields.io/github/v/release/gonoleks/gonoleks?style=for-the-badge&color=fe9774
-[repo_license_img]: https://img.shields.io/github/license/gonoleks/gonoleks?style=for-the-badge&color=a7c957
+[repo_release_img]: https://img.shields.io/github/v/release/gonoleks/gonoleks?style=for-the-badge&color=fe9774&labelColor=59636e
+[repo_license_img]: https://img.shields.io/github/license/gonoleks/gonoleks?style=for-the-badge&color=a7c957&labelColor=59636e
 [repo_license_url]: https://github.com/gonoleks/gonoleks/blob/main/LICENSE
 [repo_contributing_url]: https://github.com/gonoleks/gonoleks/blob/main/.github/CONTRIBUTING.md
 [repo_issues_url]: https://github.com/gonoleks/gonoleks/issues
@@ -345,4 +345,4 @@ Please read the [Contributing Guide][repo_contributing_url] before contributing.
 [buymeacoffee_url]: https://buymeacoffee.com/gonoleks
 [dev_to_url]: https://dev.to
 [medium_url]: https://medium.com
-[x_share_url]: https://x.com/intent/post?text=%23Gonoleks%20is%20a%20modern%20Go%20micro-framework%20that%20features%20a%20Gin-inspired%20API%20with%20lightning-faster%20performance%20%E2%9A%A1%EF%B8%8F%20https%3A%2F%2Fgithub.com%2Fgonoleks%2Fgonoleks
+[x_share_url]: https://x.com/intent/post?text=%23Gonoleks%20is%20a%20modern%20Go%20web%20framework%20that%20features%20a%20Gin-inspired%20API%20with%20lightning-faster%20performance%20%E2%9A%A1%EF%B8%8F%20https%3A%2F%2Fgithub.com%2Fgonoleks%2Fgonoleks
