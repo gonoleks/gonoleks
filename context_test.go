@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
+
+	"github.com/gonoleks/gonoleks/testdata/protoexample"
 )
 
 func createTestContext() (*Context, *fasthttp.RequestCtx) {
@@ -378,6 +380,49 @@ func TestContext_JSON_XML_YAML(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
 	assert.Contains(t, string(requestCtx.Response.Body()), "name: john")
+}
+
+func TestContext_ProtoBuf(t *testing.T) {
+	// Test successful serialization
+	t.Run("Success", func(t *testing.T) {
+		ctx, requestCtx := createTestContext()
+		testData := &protoexample.TestMessage{
+			Name:  "Test User",
+			Email: "test@example.com",
+		}
+
+		err := ctx.ProtoBuf(StatusOK, testData)
+		assert.Nil(t, err)
+		assert.Equal(t, StatusOK, requestCtx.Response.StatusCode())
+		assert.Equal(t, MIMEApplicationProtoBuf, string(requestCtx.Response.Header.ContentType()))
+
+		// Verify data was written
+		assert.Greater(t, len(requestCtx.Response.Body()), 0)
+	})
+
+	// Test with nested message
+	t.Run("Nested message", func(t *testing.T) {
+		ctx, requestCtx := createTestContext()
+		testData := &protoexample.UserProfile{
+			Username: "testuser",
+			IsActive: true,
+			Metadata: &protoexample.TestMessage{
+				Name: "nested",
+			},
+		}
+
+		err := ctx.ProtoBuf(StatusOK, testData)
+		assert.Nil(t, err)
+		assert.Equal(t, MIMEApplicationProtoBuf, string(requestCtx.Response.Header.ContentType()))
+	})
+
+	// Test error case
+	t.Run("Error with non-proto.Message", func(t *testing.T) {
+		ctx, _ := createTestContext()
+		err := ctx.ProtoBuf(StatusOK, "not a proto message")
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), ErrProtoMessageInterface.Error())
+	})
 }
 
 func TestContext_String_Data(t *testing.T) {
