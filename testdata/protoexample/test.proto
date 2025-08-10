@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package testdata;
+
+option go_package = "github.com/gonoleks/gonoleks/testdata/protoexample";
+
+// TestMessage is a simple message for testing protobuf functionality
+message TestMessage {
+  string name = 1;
+  int32 id = 2;
+  string email = 3;
+  repeated string tags = 4;
+}
+
+// UserProfile represents a user profile
+message UserProfile {
+  string username = 1;
+  string full_name = 2;
+  int32 age = 3;
+  bool is_active = 4;
+  TestMessage metadata = 5;
+}
