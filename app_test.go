@@ -1,11 +1,13 @@
 package gonoleks
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -275,6 +277,119 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, StatusOK, resp.StatusCode, "Server should respond with 200 OK")
 		assert.Equal(t, "pong", string(body), "Server should respond with 'pong'")
 	}
+}
+
+func TestRunTLS(t *testing.T) {
+	// Skip in CI environments or when running short tests
+	if testing.Short() {
+		t.Skip("Skipping TLS integration test in short mode")
+	}
+
+	// Get the certificate and key file paths
+	certFile := filepath.Join("testdata", "certificate", "cert.pem")
+	keyFile := filepath.Join("testdata", "certificate", "key.pem")
+
+	// Verify certificate files exist
+	_, err := os.Stat(certFile)
+	require.NoError(t, err, "Certificate file should exist")
+	_, err = os.Stat(keyFile)
+	require.NoError(t, err, "Key file should exist")
+
+	t.Run("RunTLS with valid certificates", func(t *testing.T) {
+		app := New()
+
+		// Find an available port
+		listener, err := net.Listen(NetworkTCP, "127.0.0.1:0")
+		require.NoError(t, err, "Failed to find available port")
+		port := listener.Addr().(*net.TCPAddr).Port
+		if closeErr := listener.Close(); closeErr != nil {
+			t.Logf("Failed to close listener: %v", closeErr)
+		}
+
+		// Register a test route
+		app.GET("/tls-ping", func(c *Context) {
+			c.String(StatusOK, "tls-pong")
+		})
+
+		// Start the TLS server in a goroutine
+		serverErr := make(chan error, 1)
+		go func() {
+			serverErr <- app.RunTLS(fmt.Sprintf(":%d", port), certFile, keyFile)
+		}()
+
+		// Give the server time to start
+		time.Sleep(200 * time.Millisecond)
+
+		// Create a TLS client that accepts self-signed certificates
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		client := &http.Client{Transport: tr}
+
+		// Make a HTTPS request to the server
+		resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d/tls-ping", port))
+		if err == nil {
+			defer func() {
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					t.Logf("Failed to close response body: %v", closeErr)
+				}
+			}()
+			body, _ := io.ReadAll(resp.Body)
+			assert.Equal(t, StatusOK, resp.StatusCode, "TLS server should respond with 200 OK")
+			assert.Equal(t, "tls-pong", string(body), "TLS server should respond with 'tls-pong'")
+		}
+	})
+
+	t.Run("RunTLS with invalid certificate file", func(t *testing.T) {
+		app := New()
+
+		// Use a non-existent certificate file
+		invalidCertFile := "invalid-cert.pem"
+
+		err := app.RunTLS(":0", invalidCertFile, keyFile)
+		assert.Error(t, err, "RunTLS should return error with invalid certificate file")
+	})
+
+	t.Run("RunTLS with invalid key file", func(t *testing.T) {
+		app := New()
+
+		// Use a non-existent key file
+		invalidKeyFile := "invalid-key.pem"
+
+		err := app.RunTLS(":0", certFile, invalidKeyFile)
+		assert.Error(t, err, "RunTLS should return error with invalid key file")
+	})
+}
+
+func TestTLSConfig(t *testing.T) {
+	t.Run("tlsConfig struct creation", func(t *testing.T) {
+		certFile := filepath.Join("testdata", "certificate", "cert.pem")
+		keyFile := filepath.Join("testdata", "certificate", "key.pem")
+
+		// Verify certificate files exist
+		_, err := os.Stat(certFile)
+		require.NoError(t, err, "Certificate file should exist")
+		_, err = os.Stat(keyFile)
+		require.NoError(t, err, "Key file should exist")
+
+		// Test that we can load the certificate and key
+		_, err = tls.LoadX509KeyPair(certFile, keyFile)
+		assert.NoError(t, err, "Should be able to load X509 key pair from test certificates")
+	})
+
+	t.Run("certificate validation", func(t *testing.T) {
+		certFile := filepath.Join("testdata", "certificate", "cert.pem")
+		keyFile := filepath.Join("testdata", "certificate", "key.pem")
+
+		// Load the certificate
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		require.NoError(t, err, "Should load certificate successfully")
+
+		// Verify the certificate has the expected properties
+		assert.NotNil(t, cert.Certificate, "Certificate should have certificate data")
+		assert.NotNil(t, cert.PrivateKey, "Certificate should have private key")
+		assert.True(t, len(cert.Certificate) > 0, "Certificate should contain at least one certificate")
+	})
 }
 
 func TestShutdown(t *testing.T) {
