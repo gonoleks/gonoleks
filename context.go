@@ -3,6 +3,7 @@ package gonoleks
 import (
 	"encoding/xml"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"strconv"
@@ -737,23 +738,40 @@ func (c *Context) Data(code int, contentType string, data []byte) *Context {
 
 // File writes the specified file into the body stream in an efficient way
 func (c *Context) File(filePath string) {
+	if !c.checkFileExists(filePath) {
+		return
+	}
+
 	c.requestCtx.SendFile(filePath)
+}
+
+// FileFromFS writes the specified file from fs.FS into the body stream in an efficient way
+func (c *Context) FileFromFS(filePath string, fs fs.FS) {
+	if !c.checkFileExists(filePath) {
+		return
+	}
+
+	fasthttp.ServeFS(c.requestCtx, fs, filePath)
 }
 
 // FileAttachment writes the specified file into the body stream in an efficient way
 // On the client side, the file will typically be downloaded with the given filename
 func (c *Context) FileAttachment(filePath, fileName string) {
-	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		_ = c.AbortWithError(StatusNotFound, ErrFileNotFound)
+	if !c.checkFileExists(filePath) {
 		return
 	}
 
-	// Set Content-Disposition header for attachment
 	c.requestCtx.Response.Header.Set(HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", fileName))
-
-	// Use SendFile for efficient file serving
 	c.requestCtx.SendFile(filePath)
+}
+
+// checkFileExists checks if file exists and handles error response
+func (c *Context) checkFileExists(filePath string) bool {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		_ = c.AbortWithError(StatusNotFound, ErrFileNotFound)
+		return false
+	}
+	return true
 }
 
 // SetAccepted sets the formats that are accepted by the client
