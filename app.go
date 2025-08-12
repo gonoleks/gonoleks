@@ -1,6 +1,7 @@
 package gonoleks
 
 import (
+	"io/fs"
 	"net"
 	"os"
 	"strings"
@@ -339,6 +340,15 @@ func (g *Gonoleks) LoadHTMLFiles(files ...string) error {
 		g.htmlRender = NewTemplateEngine()
 	}
 	return g.htmlRender.(*TemplateEngine).LoadFiles(files...)
+}
+
+// LoadHTMLFS loads an fs.FS and a slice of patterns
+// and associates the result with HTML renderer
+func (g *Gonoleks) LoadHTMLFS(fs fs.FS, patterns ...string) error {
+	if g.htmlRender == nil {
+		g.htmlRender = NewTemplateEngine()
+	}
+	return g.htmlRender.(*TemplateEngine).LoadFS(fs, patterns...)
 }
 
 // SetFuncMap sets template function map

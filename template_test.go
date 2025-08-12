@@ -2,6 +2,8 @@ package gonoleks
 
 import (
 	"bytes"
+	"embed"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+//go:embed testdata/template/*.tmpl
+var testTemplateFS embed.FS
 
 const (
 	testTemplate1                = `Hello, {{name}}!`
@@ -340,6 +345,57 @@ func TestTemplateEngine_TestdataTemplates_LoadFiles(t *testing.T) {
 	err = render.Render(&buf)
 	assert.NoError(t, err)
 	assert.Equal(t, "<h1>Hello World</h1>", buf.String())
+}
+
+func TestTemplateEngine_TestdataTemplates_LoadFS(t *testing.T) {
+	engine := NewTemplateEngine()
+	engine.SetDelims("{[{", "}]}")
+
+	// Test loading templates from embedded filesystem
+	subFS, err := fs.Sub(testTemplateFS, "testdata/template")
+	require.NoError(t, err)
+
+	err = engine.LoadFS(subFS, "*.tmpl")
+	assert.NoError(t, err)
+	assert.NotNil(t, engine.set)
+
+	t.Run("hello template from fs", func(t *testing.T) {
+		render := engine.Instance("hello.tmpl", map[string]any{
+			"name": "FS Test",
+		})
+		assert.NotNil(t, render)
+
+		var buf bytes.Buffer
+		if renderErr := render.Render(&buf); renderErr != nil {
+			err = renderErr
+		}
+		assert.NoError(t, err)
+		assert.Equal(t, "<h1>Hello FS Test</h1>", buf.String())
+	})
+
+	t.Run("raw template from fs with function", func(t *testing.T) {
+		// Add a custom function for date formatting
+		engine.SetFuncMap(map[string]any{
+			"formatAsDate": func(t time.Time) string {
+				return t.Format("2006-01-02")
+			},
+		})
+
+		// Reload templates with the new function map
+		err = engine.LoadFS(subFS, "*.tmpl")
+		require.NoError(t, err)
+
+		testTime := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+		render := engine.Instance("raw.tmpl", map[string]any{
+			"now": testTime,
+		})
+		assert.NotNil(t, render)
+
+		var buf bytes.Buffer
+		err := render.Render(&buf)
+		assert.NoError(t, err)
+		assert.Equal(t, "Date: 2025-01-15", buf.String())
+	})
 }
 
 func TestTemplateEngine_TestdataTemplates_FileExistence(t *testing.T) {

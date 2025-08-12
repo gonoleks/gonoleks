@@ -2,6 +2,7 @@ package gonoleks
 
 import (
 	"io"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -25,6 +26,11 @@ type TemplateEngine struct {
 	delims  [2]string
 	funcMap map[string]any
 	mu      sync.RWMutex
+}
+
+// fsLoader implements jet.Loader interface for fs.FS
+type fsLoader struct {
+	fs fs.FS
 }
 
 // jetRender implements Render interface for Jet templates
@@ -119,6 +125,55 @@ func (te *TemplateEngine) LoadFiles(files ...string) error {
 	te.addFunctionsToSet()
 
 	return nil
+}
+
+// LoadFS loads templates from an fs.FS with the given patterns
+func (te *TemplateEngine) LoadFS(fs fs.FS, patterns ...string) error {
+	if len(patterns) == 0 {
+		return nil
+	}
+
+	te.mu.Lock()
+	defer te.mu.Unlock()
+
+	// Create a custom Jet loader for fs.FS
+	loader := &fsLoader{fs: fs}
+
+	// Create Jet set with custom delimiters
+	te.set = jet.NewSet(
+		loader,
+		jet.WithDelims(te.delims[0], te.delims[1]),
+	)
+
+	// Add functions to the set
+	te.addFunctionsToSet()
+
+	return nil
+}
+
+// Open opens a template file from the fs.FS
+func (l *fsLoader) Open(name string) (io.ReadCloser, error) {
+	// Remove leading slash if present since fs.FS paths are relative
+	name = strings.TrimPrefix(name, "/")
+
+	file, err := l.fs.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
+// Exists checks if a template file exists in the fs.FS
+func (l *fsLoader) Exists(name string) bool {
+	// Remove leading slash if present since fs.FS paths are relative
+	name = strings.TrimPrefix(name, "/")
+
+	file, err := l.fs.Open(name)
+	if err != nil {
+		return false
+	}
+	_ = file.Close()
+	return true
 }
 
 // isSubPath checks if child is a subdirectory of parent
