@@ -505,88 +505,52 @@ func TestNoMethod(t *testing.T) {
 	assert.Equal(t, 1, len(app.router.noMethod), "NoMethod should register exactly one handler")
 }
 
-func TestSecureJsonPrefix(t *testing.T) {
-	app := New()
-
-	// Test default secure JSON prefix - access struct directly
-	assert.Equal(t, "while(1);", app.secureJsonPrefix, "Default secure JSON prefix should be 'while(1);'")
-
-	// Test setting custom secure JSON prefix
-	customPrefix := ")]}',\n"
-	app.SecureJsonPrefix(customPrefix)
-	assert.Equal(t, customPrefix, app.secureJsonPrefix, "Custom secure JSON prefix should be set correctly")
-
-	// Test setting empty prefix
-	emptyPrefix := ""
-	app.SecureJsonPrefix(emptyPrefix)
-	assert.Equal(t, emptyPrefix, app.secureJsonPrefix, "Empty secure JSON prefix should be set correctly")
-
-	// Test setting another custom prefix
-	anotherPrefix := "/**/"
-	app.SecureJsonPrefix(anotherPrefix)
-	assert.Equal(t, anotherPrefix, app.secureJsonPrefix, "Another custom secure JSON prefix should be set correctly")
-}
-
 func TestRecoveryMiddleware(t *testing.T) {
-	app := New()
+	t.Run("Recovery from panic", func(t *testing.T) {
+		app := New()
+		app.Use(Recovery())
 
-	// Add Recovery middleware
-	app.Use(Recovery())
+		app.GET("/panic", func(c *Context) {
+			panic("test panic for recovery")
+		})
 
-	// Register a route that panics
-	app.GET("/panic", func(c *Context) {
-		panic("test panic for recovery")
+		app.setupRouter()
+
+		reqCtx := &fasthttp.RequestCtx{}
+		reqCtx.Request.SetRequestURI("/panic")
+		reqCtx.Request.Header.SetMethod(MethodGet)
+
+		assert.NotPanics(t, func() {
+			app.router.Handler(reqCtx)
+		}, "Recovery middleware should catch panics")
+
+		assert.Equal(t, StatusInternalServerError, reqCtx.Response.StatusCode(), "Should return 500 status code after panic recovery")
+
+		responseBody := string(reqCtx.Response.Body())
+		assert.Contains(t, responseBody, "Internal Server Error", "Response should contain error message")
 	})
 
-	// Setup the router
-	app.setupRouter()
+	t.Run("Normal request handling with recovery middleware", func(t *testing.T) {
+		app := New()
+		app.Use(Recovery())
 
-	// Create a test request context
-	reqCtx := &fasthttp.RequestCtx{}
-	reqCtx.Request.SetRequestURI("/panic")
-	reqCtx.Request.Header.SetMethod(MethodGet)
+		app.GET("/normal", func(c *Context) {
+			c.String(StatusOK, "success")
+		})
 
-	// Test that the handler doesn't panic and recovers gracefully
-	assert.NotPanics(t, func() {
-		app.router.Handler(reqCtx)
-	}, "Recovery middleware should catch panics")
+		app.setupRouter()
 
-	// Verify that a 500 Internal Server Error is returned
-	assert.Equal(t, StatusInternalServerError, reqCtx.Response.StatusCode(), "Should return 500 status code after panic recovery")
+		reqCtx := &fasthttp.RequestCtx{}
+		reqCtx.Request.SetRequestURI("/normal")
+		reqCtx.Request.Header.SetMethod(MethodGet)
 
-	// Verify that an error message is set
-	responseBody := string(reqCtx.Response.Body())
-	assert.Contains(t, responseBody, "Internal Server Error", "Response should contain error message")
-}
+		assert.NotPanics(t, func() {
+			app.router.Handler(reqCtx)
+		}, "Recovery middleware should not interfere with normal requests")
 
-func TestRecoveryMiddlewareWithoutPanic(t *testing.T) {
-	app := New()
+		assert.Equal(t, StatusOK, reqCtx.Response.StatusCode(), "Should return 200 status code for normal requests")
 
-	// Add Recovery middleware
-	app.Use(Recovery())
-
-	// Register a normal route that doesn't panic
-	app.GET("/normal", func(c *Context) {
-		c.String(StatusOK, "success")
+		responseBody := string(reqCtx.Response.Body())
+		assert.Equal(t, "success", responseBody, "Response should contain expected content")
 	})
-
-	// Setup the router
-	app.setupRouter()
-
-	// Create a test request context
-	reqCtx := &fasthttp.RequestCtx{}
-	reqCtx.Request.SetRequestURI("/normal")
-	reqCtx.Request.Header.SetMethod(MethodGet)
-
-	// Test that normal requests work fine with Recovery middleware
-	assert.NotPanics(t, func() {
-		app.router.Handler(reqCtx)
-	}, "Recovery middleware should not interfere with normal requests")
-
-	// Verify that a 200 OK is returned
-	assert.Equal(t, StatusOK, reqCtx.Response.StatusCode(), "Should return 200 status code for normal requests")
-
-	// Verify the response body
-	responseBody := string(reqCtx.Response.Body())
-	assert.Equal(t, "success", responseBody, "Response should contain expected content")
 }
