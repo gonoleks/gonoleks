@@ -141,6 +141,94 @@ func TestGroup(t *testing.T) {
 	assert.Equal(t, "/api/v1/posts", route.Path, "Nested group route path should have all prefixes")
 }
 
+func testGroupMiddleware1(c *Context) {
+	c.Next()
+}
+
+func testGroupMiddleware2(c *Context) {
+	c.Next()
+}
+
+func TestGroupWithoutHandlers(t *testing.T) {
+	app := New()
+
+	// Test Group without handlers (original behavior)
+	group := app.Group("/api")
+
+	assert.NotNil(t, group, "Group() should return a non-nil RouterGroup")
+	assert.Equal(t, "/api", group.prefix, "Group prefix should be set correctly")
+	assert.Equal(t, 0, len(group.middlewares), "Group should have no middlewares when none provided")
+}
+
+func TestGroupWithHandlers(t *testing.T) {
+	app := New()
+
+	// Test Group with handlers (new Gin-like behavior)
+	group := app.Group("/api", testGroupMiddleware1, testGroupMiddleware2)
+
+	assert.NotNil(t, group, "Group() should return a non-nil RouterGroup")
+	assert.Equal(t, "/api", group.prefix, "Group prefix should be set correctly")
+	assert.Equal(t, 2, len(group.middlewares), "Group should have 2 middlewares when provided")
+}
+
+func TestGroupWithSingleHandler(t *testing.T) {
+	app := New()
+
+	// Test Group with single handler
+	group := app.Group("/api", testGroupMiddleware1)
+
+	assert.NotNil(t, group, "Group() should return a non-nil RouterGroup")
+	assert.Equal(t, "/api", group.prefix, "Group prefix should be set correctly")
+	assert.Equal(t, 1, len(group.middlewares), "Group should have 1 middleware when one provided")
+}
+
+func TestGroupMiddlewareInheritanceWithHandlers(t *testing.T) {
+	app := New()
+
+	// Add middleware to parent
+	parent := app.Group("/parent").Use(testGroupMiddleware1)
+
+	// Create child group with additional middleware via Group method
+	child := parent.Group("/child", testGroupMiddleware2)
+
+	assert.NotNil(t, child, "Child group should be created")
+	assert.Equal(t, "/parent/child", child.prefix, "Child group prefix should combine parent and child")
+	// Should have both parent middleware (1) and child middleware (1) = 2 total
+	assert.Equal(t, 2, len(child.middlewares), "Child group should inherit parent middleware plus new ones")
+}
+
+func TestGroupBackwardCompatibility(t *testing.T) {
+	app := New()
+
+	// Test that old usage still works
+	group1 := app.Group("/api")
+	group1.Use(testGroupMiddleware1)
+
+	// Test that new usage works
+	group2 := app.Group("/v2", testGroupMiddleware1)
+
+	// Both should work and have same result
+	assert.Equal(t, 1, len(group1.middlewares), "Old usage should work")
+	assert.Equal(t, 1, len(group2.middlewares), "New usage should work")
+
+	// Test mixed usage
+	group3 := app.Group("/v3", testGroupMiddleware1)
+	group3.Use(testGroupMiddleware2)
+	assert.Equal(t, 2, len(group3.middlewares), "Mixed usage should work")
+}
+
+func TestGroupWithNilHandlers(t *testing.T) {
+	app := New()
+
+	// Test Group with nil handlers
+	group := app.Group("/api", nil, testGroupMiddleware1, nil)
+
+	assert.NotNil(t, group, "Group() should return a non-nil RouterGroup")
+	assert.Equal(t, "/api", group.prefix, "Group prefix should be set correctly")
+	// Should have 3 handlers (including nil ones)
+	assert.Equal(t, 3, len(group.middlewares), "Group should include nil handlers in count")
+}
+
 func TestRouteGroupEmptyPrefix(t *testing.T) {
 	app := New()
 
