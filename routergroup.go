@@ -9,7 +9,7 @@ import (
 
 // IRoutes defines all common routing methods that both Gonoleks and RouterGroup implement
 type IRoutes interface {
- 	Use(...handlerFunc) IRoutes
+	Use(...handlerFunc) IRoutes
 	Group(string, ...handlerFunc) *RouterGroup
 	Handle(string, string, ...handlerFunc) *Route
 	Any(string, ...handlerFunc) []*Route
@@ -53,23 +53,19 @@ func (rh *RouteHandler) Group(relativePath string, handlers ...handlerFunc) *Rou
 	if rh.app.CaseInSensitive {
 		relativePath = strings.ToLower(relativePath)
 	}
-
 	// Create new middleware slice inheriting from parent
 	newMiddlewares := make(handlersChain, len(rh.middlewares))
 	copy(newMiddlewares, rh.middlewares)
-	
 	// Append any additional handlers passed to Group
 	if len(handlers) > 0 {
 		newMiddlewares = append(newMiddlewares, handlers...)
 	}
-
 	rg := &RouterGroup{}
 	rg.RouteHandler = RouteHandler{
 		app:         rh.app,
 		prefix:      rh.prefix + relativePath,
 		middlewares: newMiddlewares,
 	}
-
 	return rg
 }
 
@@ -84,29 +80,23 @@ func (rh *RouteHandler) Handle(httpMethod, relativePath string, handlers ...hand
 	if rh.app.CaseInSensitive {
 		relativePath = strings.ToLower(relativePath)
 	}
-
 	fullPath := rh.prefix + relativePath
-
 	// Combine middlewares: global + group + route handlers
 	totalHandlers := len(rh.app.middlewares) + len(rh.middlewares) + len(handlers)
 	finalHandlers := make(handlersChain, totalHandlers)
-
 	// Copy global middleware first
 	copy(finalHandlers[:len(rh.app.middlewares)], rh.app.middlewares)
 	// Then group middleware
 	copy(finalHandlers[len(rh.app.middlewares):len(rh.app.middlewares)+len(rh.middlewares)], rh.middlewares)
 	// Finally route handlers
 	copy(finalHandlers[len(rh.app.middlewares)+len(rh.middlewares):], handlers)
-
 	// Register the main route
 	route := rh.app.registerRoute(httpMethod, fullPath, finalHandlers)
-
 	// Handle trailing slash normalization
 	if len(fullPath) > 1 && fullPath[len(fullPath)-1] == '/' {
 		pathWithoutSlash := fullPath[:len(fullPath)-1]
 		rh.app.registerRoute(httpMethod, pathWithoutSlash, finalHandlers)
 	}
-
 	return route
 }
 
@@ -124,7 +114,6 @@ func (rh *RouteHandler) Any(relativePath string, handlers ...handlerFunc) []*Rou
 		MethodConnect,
 		MethodTrace,
 	}
-
 	return rh.Match(methods, relativePath, handlers...)
 }
 
@@ -241,7 +230,6 @@ func (rh *RouteHandler) createStaticHandler(relativePath string, fs *fasthttp.FS
 		relativePath = strings.ToLower(relativePath)
 	}
 	fullPath := strings.TrimSuffix(rh.prefix+relativePath, "/")
-
 	// Configure relativePath rewrite for the file system
 	fs.PathRewrite = func(ctx *fasthttp.RequestCtx) []byte {
 		requestPath := ctx.Path()
@@ -257,12 +245,10 @@ func (rh *RouteHandler) createStaticHandler(relativePath string, fs *fasthttp.FS
 		}
 		return requestPath
 	}
-
 	fileHandler := fs.NewRequestHandler()
 	handler := func(c *Context) {
 		fctx := c.Context()
 		fileHandler(fctx)
-
 		// Handle not found cases
 		status := fctx.Response.StatusCode()
 		if status == StatusNotFound || status == StatusForbidden {
@@ -271,14 +257,11 @@ func (rh *RouteHandler) createStaticHandler(relativePath string, fs *fasthttp.FS
 				rh.app.router.noRoute[0](c)
 				return
 			}
-
 			// Default Not Found response
 			c.requestCtx.Error(fasthttp.StatusMessage(StatusNotFound), StatusNotFound)
 		}
 	}
-
 	rh.GET(relativePath, handler)
-
 	// Register wildcard route if needed
 	if len(relativePath) > 0 && relativePath[len(relativePath)-1] != '*' {
 		rh.GET(relativePath+"/*", handler)

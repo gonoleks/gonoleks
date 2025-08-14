@@ -22,23 +22,19 @@ type H map[string]any
 func (h H) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	start.Name.Local = "map"
 	start.Name.Space = ""
-
 	if err := e.EncodeToken(start); err != nil {
 		return err
 	}
-
 	elem := &xml.StartElement{
 		Name: xml.Name{Space: ""},
 		Attr: nil,
 	}
-
 	for key, value := range h {
 		elem.Name.Local = key
 		if err := e.EncodeElement(value, *elem); err != nil {
 			return err
 		}
 	}
-
 	return e.EncodeToken(xml.EndElement{Name: start.Name})
 }
 
@@ -50,22 +46,18 @@ func resolveAddress(portStr string) string {
 		log.Warnf("Empty port format, using default port %s", defaultPort)
 		return globalIpv4Addr + defaultPort
 	}
-
 	if strings.HasPrefix(portStr, ":") {
 		portNum, err := strconv.Atoi(portStr[1:])
 		if err != nil || portNum < 1 || portNum > 65535 {
 			log.With("port", portStr).Warnf("Invalid port format, using default port %s", defaultPort)
 			return globalIpv4Addr + defaultPort
 		}
-		// Default to IPv4 when only port is specified
 		return globalIpv4Addr + portStr
 	}
-
 	// If it doesn't start with colon but contains colon, it's a complete address
 	if strings.Contains(portStr, ":") {
 		return portStr
 	}
-
 	// If there's no colon at all, it's invalid (port number without colon)
 	// Fall back to default port
 	log.With("port", portStr).Warnf("Invalid port format, using default port %s", defaultPort)
@@ -82,7 +74,6 @@ func detectNetworkProtocol(addr string) string {
 	if strings.Contains(addr, ".") {
 		return NetworkTCP4
 	}
-	// Default to IPv4 for ambiguous cases
 	return NetworkTCP4
 }
 

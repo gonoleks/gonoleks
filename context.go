@@ -45,7 +45,6 @@ func (c *Context) Copy() *Context {
 		index:      c.index,
 		fullPath:   c.fullPath,
 	}
-
 	// Copy parameter map
 	if c.paramValues != nil {
 		contextCopy.paramValues = make(map[string]string, len(c.paramValues))
@@ -53,13 +52,11 @@ func (c *Context) Copy() *Context {
 			contextCopy.paramValues[k] = v
 		}
 	}
-
 	// Copy handler chain
 	if c.handlers != nil {
 		contextCopy.handlers = make(handlersChain, len(c.handlers))
 		copy(contextCopy.handlers, c.handlers)
 	}
-
 	return contextCopy
 }
 
@@ -133,18 +130,15 @@ func (c *Context) Set(key, value any) {
 	if key == nil {
 		return
 	}
-
 	if c.requestCtx.UserValue("keys") == nil {
 		c.requestCtx.SetUserValue("keys", make(map[any]any))
 	}
-
 	keys, ok := c.requestCtx.UserValue("keys").(map[any]any)
 	if !ok {
 		// Reset if type assertion fails
 		keys = make(map[any]any)
 		c.requestCtx.SetUserValue("keys", keys)
 	}
-
 	keys[key] = value
 }
 
@@ -154,16 +148,13 @@ func (c *Context) Get(key any) (value any, exists bool) {
 	if key == nil {
 		return nil, false
 	}
-
 	if c.requestCtx.UserValue("keys") == nil {
 		return nil, false
 	}
-
 	keys, ok := c.requestCtx.UserValue("keys").(map[any]any)
 	if !ok {
 		return nil, false
 	}
-
 	value, exists = keys[key]
 	return
 }
@@ -277,18 +268,15 @@ func (c *Context) PostForm(key string) string {
 	if v := c.requestCtx.PostArgs().PeekBytes(getBytes(key)); len(v) > 0 {
 		return getString(v)
 	}
-
 	// Then check if it's a multipart form
 	form, err := c.requestCtx.MultipartForm()
 	if err != nil {
 		return ""
 	}
-
 	// Check if the key exists in the multipart form
 	if values := form.Value[key]; len(values) > 0 {
 		return values[0]
 	}
-
 	return ""
 }
 
@@ -300,18 +288,15 @@ func (c *Context) DefaultPostForm(key, defaultValue string) string {
 	if v := c.requestCtx.PostArgs().PeekBytes(getBytes(key)); len(v) > 0 {
 		return getString(v)
 	}
-
 	// Then check if it's a multipart form
 	form, err := c.requestCtx.MultipartForm()
 	if err != nil {
 		return defaultValue
 	}
-
 	// Check if the key exists in the multipart form
 	if values := form.Value[key]; len(values) > 0 {
 		return values[0]
 	}
-
 	return defaultValue
 }
 
@@ -328,18 +313,15 @@ func (c *Context) GetPostForm(key string) (string, bool) {
 	if v := c.requestCtx.PostArgs().PeekBytes(getBytes(key)); v != nil {
 		return getString(v), true
 	}
-
 	// Then check if it's a multipart form
 	form, err := c.requestCtx.MultipartForm()
 	if err != nil {
 		return "", false
 	}
-
 	// Check if the key exists in the multipart form
 	if values, exists := form.Value[key]; exists && len(values) > 0 {
 		return values[0], true
 	}
-
 	return "", false
 }
 
@@ -347,14 +329,12 @@ func (c *Context) GetPostForm(key string) (string, bool) {
 // The length of the slice depends on the number of params with the given key
 func (c *Context) PostFormArray(key string) []string {
 	values := []string{}
-
 	// First check if it's a urlencoded form
 	for k, v := range c.requestCtx.PostArgs().All() {
 		if string(k) == key {
 			values = append(values, getString(v))
 		}
 	}
-
 	// Then check if it's a multipart form
 	form, err := c.requestCtx.MultipartForm()
 	if err == nil {
@@ -362,7 +342,6 @@ func (c *Context) PostFormArray(key string) []string {
 			values = append(values, vals...)
 		}
 	}
-
 	return values
 }
 
@@ -376,7 +355,6 @@ func (c *Context) GetPostFormArray(key string) ([]string, bool) {
 // PostFormMap returns a map for a given form key
 func (c *Context) PostFormMap(key string) map[string]string {
 	result := make(map[string]string)
-
 	// First check if it's a urlencoded form
 	for k, v := range c.requestCtx.PostArgs().All() {
 		keyStr := string(k)
@@ -387,7 +365,6 @@ func (c *Context) PostFormMap(key string) map[string]string {
 			}
 		}
 	}
-
 	// Then check if it's a multipart form
 	form, err := c.requestCtx.MultipartForm()
 	if err == nil {
@@ -402,7 +379,6 @@ func (c *Context) PostFormMap(key string) map[string]string {
 			}
 		}
 	}
-
 	return result
 }
 
@@ -429,12 +405,10 @@ func (c *Context) ClientIP() string {
 		}
 		return strings.TrimSpace(xff)
 	}
-
 	// Check X-Real-IP header
 	if xrip := c.GetHeader(HeaderXRealIP); xrip != "" {
 		return strings.TrimSpace(xrip)
 	}
-
 	// Fall back to direct connection IP
 	return c.RemoteIP()
 }
@@ -499,10 +473,8 @@ func (c *Context) SetCookie(name, value string, maxAge int, path, domain string,
 	if path == "" {
 		path = "/"
 	}
-
 	cookie := fasthttp.AcquireCookie()
 	defer fasthttp.ReleaseCookie(cookie)
-
 	cookie.SetKey(name)
 	cookie.SetValue(url.QueryEscape(value))
 	cookie.SetPath(path)
@@ -510,13 +482,11 @@ func (c *Context) SetCookie(name, value string, maxAge int, path, domain string,
 	cookie.SetMaxAge(maxAge)
 	cookie.SetSecure(secure)
 	cookie.SetHTTPOnly(httpOnly)
-
 	if maxAge > 0 {
 		cookie.SetExpire(time.Now().Add(time.Duration(maxAge) * time.Second))
 	} else if maxAge < 0 {
 		cookie.SetExpire(time.Unix(1, 0))
 	}
-
 	c.requestCtx.Response.Header.SetCookie(cookie)
 }
 
@@ -542,14 +512,11 @@ func (c *Context) HTML(code int, name string, obj any) {
 		_ = c.AbortWithError(StatusInternalServerError, ErrTemplateEngineNotSet)
 		return
 	}
-
 	// Get the template renderer instance
 	render := k.htmlRender.Instance(name, obj)
-
 	// Set status code and content type
 	c.requestCtx.Response.SetStatusCode(code)
 	c.requestCtx.Response.Header.Set(HeaderContentType, MIMETextHTMLCharsetUTF8)
-
 	// Render the template
 	if err := render.Render(c.requestCtx); err != nil {
 		_ = c.AbortWithError(StatusInternalServerError, fmt.Errorf("%v: %w", ErrHTMLTemplateRender, err))
@@ -561,14 +528,12 @@ func (c *Context) HTML(code int, name string, obj any) {
 func (c *Context) JSON(code int, obj any) error {
 	c.requestCtx.Response.Header.SetContentType(MIMEApplicationJSONCharsetUTF8)
 	c.requestCtx.Response.SetStatusCode(code)
-
 	// Use pre-allocated buffer from fasthttp for better performance
 	jsonBytes, err := sonic.ConfigFastest.Marshal(obj)
 	if err != nil {
 		log.Error(ErrJSONMarshalingFailed, "error", err)
 		return fmt.Errorf("%v: %w", ErrJSONMarshal, err)
 	}
-
 	// Write directly to response body
 	c.requestCtx.Response.SetBody(jsonBytes)
 	return nil
@@ -580,13 +545,11 @@ func (c *Context) JSON(code int, obj any) error {
 func (c *Context) IndentedJSON(code int, obj any) error {
 	c.requestCtx.Response.SetStatusCode(code)
 	c.requestCtx.Response.Header.SetContentType(MIMEApplicationJSON)
-
 	raw, err := sonic.ConfigFastest.MarshalIndent(obj, "", "    ")
 	if err != nil {
 		log.Error(ErrIndentedJSONMarshalingFailed, "error", err)
 		return fmt.Errorf("%v: %w", ErrIndentedJSONMarshal, err)
 	}
-
 	c.requestCtx.Response.SetBodyRaw(raw)
 	return nil
 }
@@ -597,16 +560,13 @@ func (c *Context) IndentedJSON(code int, obj any) error {
 func (c *Context) SecureJSON(code int, obj any) error {
 	app := c.requestCtx.UserValue("gonoleksApp").(*Gonoleks)
 	securePrefix := app.secureJsonPrefix
-
 	c.requestCtx.Response.SetStatusCode(code)
 	c.requestCtx.Response.Header.SetContentType(MIMEApplicationJSON)
-
 	raw, err := sonic.ConfigFastest.Marshal(obj)
 	if err != nil {
 		log.Error(ErrSecureJSONMarshalingFailed, "error", err)
 		return fmt.Errorf("%v: %w", ErrSecureJSONMarshal, err)
 	}
-
 	// Prefix the JSON with the secure string
 	c.requestCtx.Response.SetBodyRaw(getBytes(securePrefix + string(raw)))
 	return nil
@@ -618,13 +578,11 @@ func (c *Context) SecureJSON(code int, obj any) error {
 func (c *Context) AsciiJSON(code int, obj any) error {
 	c.requestCtx.Response.SetStatusCode(code)
 	c.requestCtx.Response.Header.SetContentType(MIMEApplicationJSON)
-
 	ret, err := sonic.ConfigFastest.Marshal(obj)
 	if err != nil {
 		log.Error(ErrAsciiJSONMarshalingFailed, "error", err)
 		return fmt.Errorf("%v: %w", ErrAsciiJSONMarshal, err)
 	}
-
 	// Escape all non-ASCII and special characters as \uXXXX
 	var builder strings.Builder
 	for _, r := range string(ret) {
@@ -640,7 +598,6 @@ func (c *Context) AsciiJSON(code int, obj any) error {
 		}
 	}
 	asciiJSON := builder.String()
-
 	c.requestCtx.Response.SetBodyRaw(getBytes(asciiJSON))
 	return nil
 }
@@ -651,13 +608,11 @@ func (c *Context) AsciiJSON(code int, obj any) error {
 func (c *Context) PureJSON(code int, obj any) error {
 	c.requestCtx.Response.SetStatusCode(code)
 	c.requestCtx.Response.Header.SetContentType(MIMEApplicationJSON)
-
 	raw, err := sonic.ConfigFastest.Marshal(obj)
 	if err != nil {
 		log.Error(ErrPureJSONMarshalingFailed, "error", err)
 		return fmt.Errorf("%v: %w", ErrPureJSONMarshal, err)
 	}
-
 	c.requestCtx.Response.SetBodyRaw(raw)
 	return nil
 }
@@ -667,13 +622,11 @@ func (c *Context) PureJSON(code int, obj any) error {
 func (c *Context) XML(code int, obj any) error {
 	c.requestCtx.Response.SetStatusCode(code)
 	c.requestCtx.Response.Header.SetContentType(MIMEApplicationXML)
-
 	raw, err := xml.Marshal(obj)
 	if err != nil {
 		log.Error(ErrXMLMarshalingFailed, "error", err)
 		return fmt.Errorf("%v: %w", ErrXMLMarshal, err)
 	}
-
 	c.requestCtx.Response.SetBodyRaw(raw)
 	return nil
 }
@@ -683,13 +636,11 @@ func (c *Context) XML(code int, obj any) error {
 func (c *Context) YAML(code int, obj any) error {
 	c.requestCtx.Response.SetStatusCode(code)
 	c.requestCtx.Response.Header.SetContentType(MIMEApplicationYAML)
-
 	raw, err := yaml.Marshal(obj)
 	if err != nil {
 		log.Error(ErrYAMLMarshalingFailed, "error", err)
 		return fmt.Errorf("%v: %w", ErrXMLMarshal, err)
 	}
-
 	c.requestCtx.Response.SetBodyRaw(raw)
 	return nil
 }
@@ -700,7 +651,6 @@ func (c *Context) YAML(code int, obj any) error {
 func (c *Context) ProtoBuf(code int, obj any) error {
 	c.requestCtx.Response.SetStatusCode(code)
 	c.requestCtx.Response.Header.SetContentType(MIMEApplicationProtoBuf)
-
 	// Check if data implements proto.Message interface
 	msg, ok := obj.(proto.Message)
 	if !ok {
@@ -708,13 +658,11 @@ func (c *Context) ProtoBuf(code int, obj any) error {
 		log.Error(ErrProtoBufMarshalingFailed, "error", err)
 		return fmt.Errorf("%v: %w", ErrProtoBufMarshal, err)
 	}
-
 	raw, err := proto.Marshal(msg)
 	if err != nil {
 		log.Error(ErrProtoBufMarshalingFailed, "error", err)
 		return fmt.Errorf("%v: %w", ErrProtoBufMarshal, err)
 	}
-
 	c.requestCtx.Response.SetBodyRaw(raw)
 	return nil
 }
@@ -749,7 +697,6 @@ func (c *Context) File(filePath string) {
 	if !c.checkFileExists(filePath) {
 		return
 	}
-
 	c.requestCtx.SendFile(filePath)
 }
 
@@ -758,7 +705,6 @@ func (c *Context) FileFromFS(filePath string, fs fs.FS) {
 	if !c.checkFileExists(filePath) {
 		return
 	}
-
 	fasthttp.ServeFS(c.requestCtx, fs, filePath)
 }
 
@@ -768,7 +714,6 @@ func (c *Context) FileAttachment(filePath, fileName string) {
 	if !c.checkFileExists(filePath) {
 		return
 	}
-
 	c.requestCtx.Response.Header.Set(HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", fileName))
 	c.requestCtx.SendFile(filePath)
 }

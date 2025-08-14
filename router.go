@@ -12,6 +12,7 @@ import (
 type ultraFastRouteCache struct {
 	// Cache-aligned entries to prevent false sharing
 	entries [512]ultraFastCacheEntry
+
 	// Pre-computed hash masks for bit operations
 	hashMask uint32
 }
@@ -77,20 +78,17 @@ type router struct {
 //go:nosplit
 func (r *router) acquireCtx(fctx *fasthttp.RequestCtx) *Context {
 	ctx := r.pool.Get().(*Context)
-
 	// Ultra-fast context initialization without function calls
 	ctx.handlers = ctx.handlers[:0] // Reset length, keep capacity
 	ctx.index = -1
 	ctx.fullPath = ""
 	ctx.requestCtx = fctx
-
 	// Initialize or clear param values map
 	if ctx.paramValues == nil {
 		ctx.paramValues = make(map[string]string)
 	} else if len(ctx.paramValues) > 0 {
 		clear(ctx.paramValues)
 	}
-
 	return ctx
 }
 
@@ -105,12 +103,10 @@ func (r *router) releaseCtx(ctx *Context) {
 	ctx.index = -1
 	ctx.fullPath = ""
 	ctx.requestCtx = nil
-
 	// Clear map only if it has entries (performance optimization)
 	if len(ctx.paramValues) > 0 {
 		clear(ctx.paramValues)
 	}
-
 	r.pool.Put(ctx)
 }
 
@@ -126,7 +122,6 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 	} else if len(handlers) == 0 {
 		panic("router.handle: no handler functions provided for route '" + method + " " + path + "'")
 	}
-
 	// Initialize tree if it's empty
 	if r.trees == nil {
 		r.trees = make(map[string]*node)
@@ -137,7 +132,6 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 	if r.fastRouter == nil {
 		r.fastRouter = NewFastRouter()
 	}
-
 	// Check if this is a static route (no parameters)
 	if !strings.Contains(path, ":") && !strings.Contains(path, "*") {
 		// Cache static routes for O(1) lookup
@@ -145,13 +139,11 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 		r.staticRoutes[routeKey] = handlers
 		r.fastRouter.AddRoute(method, path, handlers)
 	}
-
 	// Get root of method if it exists, otherwise create it
 	root := r.trees[method]
 	if root == nil {
 		root = createRootNode()
 		r.trees[method] = root
-
 		// Update lookup trees for common methods
 		switch method {
 		case MethodGet:
@@ -162,7 +154,6 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 			r.putTree = root
 		}
 	}
-
 	root.addRoute(path, handlers)
 }
 
@@ -171,7 +162,6 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 	var allow string
 	pathLen := len(path)
-
 	// Handle * and /* requests
 	if (pathLen == 1 && path[0] == '*') || (pathLen > 1 && path[1] == '*') {
 		for method := range r.trees {
@@ -186,7 +176,6 @@ func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 		}
 		return allow
 	}
-
 	for method, tree := range r.trees {
 		if method == reqMethod || method == MethodOptions {
 			continue
@@ -199,7 +188,6 @@ func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 			}
 		}
 	}
-
 	if len(allow) > 0 {
 		allow += ", " + MethodOptions
 	}
@@ -211,20 +199,16 @@ func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 	// Set gonoleks app instance for template engine access
 	fctx.SetUserValue("gonoleksApp", r.app)
-
 	// Acquire context from pool
 	ctx := r.acquireCtx(fctx)
 	defer r.releaseCtx(ctx)
-
 	// Apply logging middleware for Default() mode (all requests)
 	if r.app != nil && r.app.enableLogging {
 		ctx.handlers = append(ctx.handlers, LoggerWithFormatter(DefaultLogFormatter))
 	}
-
 	// Extract method and path with zero-copy optimization
 	methodBytes := fctx.Method()
 	pathBytes := fctx.Path()
-
 	var method, path string
 	if r.app.CaseInSensitive {
 		method = strings.ToUpper(getString(methodBytes))
@@ -233,24 +217,20 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 		method = getString(methodBytes)
 		path = getString(pathBytes)
 	}
-
 	// Try to handle the route
 	if r.handleRoute(method, path, ctx) {
 		// Route was handled successfully, execute middleware chain
 		ctx.Next()
 		return
 	}
-
 	// Route not found, handle special cases but ensure logging still happens
 	handled := false
-
 	// Handle method not allowed
 	if !handled && r.app.HandleMethodNotAllowed {
 		if r.handleMethodNotAllowed(fctx, method, path, ctx) {
 			handled = true
 		}
 	}
-
 	// Handle not found
 	if !handled {
 		// Apply global middleware for error responses in production mode
@@ -263,7 +243,6 @@ func (r *router) Handler(fctx *fasthttp.RequestCtx) {
 			fctx.Error(fasthttp.StatusMessage(StatusNotFound), StatusNotFound)
 		}
 	}
-
 	// Always execute middleware chain to ensure logging happens
 	ctx.Next()
 }
@@ -278,14 +257,12 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 		// Use unsafe pointer operations for zero-allocation performance
 		methodPtr := unsafe.Pointer(unsafe.StringData(method))
 		pathPtr := unsafe.Pointer(unsafe.StringData(path))
-
 		// Try ultra-fast lookup first with CPU cache optimization
 		if handlers, exists := r.fastRouter.UltraFastLookup(methodPtr, pathPtr, len(method), len(path)); exists {
 			// Preserve existing handlers (like logger) and append route handlers
 			context.handlers = append(context.handlers, handlers...)
 			return true
 		}
-
 		// Fallback to regular fast lookup only if ultra-fast fails
 		if handlers, exists := r.fastRouter.FastLookup(method, path); exists {
 			// Preserve existing handlers (like logger) and append route handlers
@@ -293,7 +270,6 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 			return true
 		}
 	}
-
 	// Optimized method lookup with branch prediction hints
 	var root *node
 	// Reorder switch cases by frequency for better branch prediction
@@ -309,11 +285,9 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 	default: // Least common methods
 		root = r.trees[method]
 	}
-
 	if root == nil {
 		return false
 	}
-
 	// Optimized tree traversal for parameterized routes
 	handlers := root.matchRoute(path, context)
 	if handlers != nil {
@@ -321,7 +295,6 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 		context.handlers = append(context.handlers, handlers...)
 		return true
 	}
-
 	return false
 }
 
@@ -330,7 +303,6 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 func (r *router) handleMethodNotAllowed(fctx *fasthttp.RequestCtx, method, path string, context *Context) bool {
 	if allow := r.allowed(method, path, context); len(allow) > 0 {
 		fctx.Response.Header.Set(HeaderAllow, allow)
-
 		// Use custom handlers if available
 		if r.noMethod != nil {
 			// Apply global middleware for error responses in production mode
@@ -341,7 +313,6 @@ func (r *router) handleMethodNotAllowed(fctx *fasthttp.RequestCtx, method, path 
 			context.handlers = append(context.handlers, r.noMethod...)
 			return true
 		}
-
 		// Apply global middleware for error responses in production mode
 		if r.app != nil && !r.app.enableLogging && len(r.globalMiddleware) > 0 {
 			context.handlers = append(context.handlers, r.globalMiddleware...)
@@ -379,13 +350,11 @@ func NewFastRouter() *FastRouter {
 			},
 		},
 	}
-
 	// Pre-warm the context pool
 	for i := 0; i < 32; i++ {
 		ctx := fr.ctxPool.Get().(*Context)
 		fr.ctxPool.Put(ctx)
 	}
-
 	return fr
 }
 
@@ -397,27 +366,22 @@ func (fr *FastRouter) AddRoute(method, path string, handlers handlersChain) {
 	methodHash := ultraFastStringHash(method)
 	pathHash := ultraFastStringHash(path)
 	combinedHash := ultraFastCombinedHash(methodHash, pathHash)
-
 	// Store using hash-based key for zero-allocation lookup
 	fr.routeHashes[combinedHash] = handlers
-
 	// Pre-compute hash for ultra-fast cache
 	hash32 := uint32(combinedHash)
-
 	// Add to ultra-fast cache with CPU cache optimization
 	cacheIndex := hash32 & fr.ultraCache.hashMask
 	fr.ultraCache.entries[cacheIndex] = ultraFastCacheEntry{
 		hash:     hash32,
 		handlers: handlers,
 	}
-
 	// Add to common routes cache using optimized hash
 	index := hash32 & 1023 // Bit mask for power-of-2 modulo
 	fr.commonRoutes[index] = commonRoute{
 		key:      hash32,
 		handlers: handlers,
 	}
-
 	// Add to route cache using hash
 	routeCacheIndex := hash32 & 255
 	fr.routeCache[routeCacheIndex] = hashCacheEntry{
@@ -436,24 +400,20 @@ func (fr *FastRouter) FastLookup(method, path string) (handlersChain, bool) {
 	pathHash := ultraFastStringHash(path)
 	combinedHash := ultraFastCombinedHash(methodHash, pathHash)
 	hash32 := uint32(combinedHash)
-
 	// Level 1: Check CPU cache-optimized route cache first
 	cacheIndex := hash32 & 255
 	if entry := &fr.routeCache[cacheIndex]; entry.hash == combinedHash {
 		return entry.handlers, true
 	}
-
 	// Level 2: Check common routes with bit-masked indexing
 	commonIndex := hash32 & 1023
 	if common := &fr.commonRoutes[commonIndex]; common.key == hash32 {
 		return common.handlers, true
 	}
-
 	// Level 3: Fallback to hash-based map lookup
 	if handlers, exists := fr.routeHashes[combinedHash]; exists {
 		return handlers, true
 	}
-
 	return nil, false
 }
 
@@ -471,16 +431,13 @@ func (fr *FastRouter) GetContext() *Context {
 func (fr *FastRouter) PutContext(ctx *Context) {
 	// Reset handlers slice length but keep capacity
 	ctx.handlers = ctx.handlers[:0]
-
 	// Clear param values map if it has entries
 	if len(ctx.paramValues) > 0 {
 		clear(ctx.paramValues)
 	}
-
 	// Reset index and clear full path
 	ctx.index = -1
 	ctx.fullPath = ""
-
 	fr.ctxPool.Put(ctx)
 }
 
@@ -491,37 +448,30 @@ func (fr *FastRouter) PutContext(ctx *Context) {
 func (fr *FastRouter) UltraFastLookup(methodPtr, pathPtr unsafe.Pointer, methodLen, pathLen int) (handlersChain, bool) {
 	// Compute method hash dynamically for platform independence
 	methodHash := ultraFastStringHash(unsafe.String((*byte)(methodPtr), methodLen))
-
 	// Fast path hash for common paths
 	pathHash := ultraFastStringHash(unsafe.String((*byte)(pathPtr), pathLen))
-
 	// Combine hashes efficiently
 	combinedHash := ultraFastCombinedHash(methodHash, pathHash)
 	hash32 := uint32(combinedHash)
-
 	// Level 0: Ultra-fast cache lookup with CPU cache optimization
 	ultraIndex := hash32 & fr.ultraCache.hashMask
 	if entry := &fr.ultraCache.entries[ultraIndex]; entry.hash == hash32 {
 		return entry.handlers, true
 	}
-
 	// Level 1: Check CPU cache-optimized route cache with hash-based comparison
 	cacheIndex := hash32 & 255
 	if entry := &fr.routeCache[cacheIndex]; entry.hash == combinedHash {
 		return entry.handlers, true
 	}
-
 	// Level 2: Check common routes with bit-masked indexing
 	commonIndex := hash32 & 1023
 	if common := &fr.commonRoutes[commonIndex]; common.key == hash32 {
 		return common.handlers, true
 	}
-
 	// Level 3: Final hash map lookup
 	if handlers, exists := fr.routeHashes[combinedHash]; exists {
 		return handlers, true
 	}
-
 	return nil, false
 }
 

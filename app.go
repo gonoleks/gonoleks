@@ -116,6 +116,7 @@ func Default() *Gonoleks {
 	return createInstance(true)
 }
 
+// createInstance creates a new Gonoleks instance with the specified debug mode
 func createInstance(debugMode bool) *Gonoleks {
 	g := &Gonoleks{
 		registeredRoutes:     make([]*Route, 0),
@@ -125,14 +126,12 @@ func createInstance(debugMode bool) *Gonoleks {
 		secureJsonPrefix:     "while(1);",
 		Options:              defaultOptions(),
 	}
-
 	// Initialize the embedded RouteHandler
 	g.RouteHandler = RouteHandler{
 		app:         g,
 		prefix:      "",
 		middlewares: make(handlersChain, 0),
 	}
-
 	g.router = &router{
 		pool: sync.Pool{
 			New: func() any {
@@ -145,13 +144,11 @@ func createInstance(debugMode bool) *Gonoleks {
 		},
 		app: g,
 	}
-
 	// Pre-warm the pool with more contexts to reduce allocation overhead
 	for i := 0; i < 16; i++ {
 		ctx := g.router.pool.Get().(*Context)
 		g.router.pool.Put(ctx)
 	}
-
 	g.httpServer = g.newHTTPServer()
 	return g
 }
@@ -170,11 +167,9 @@ func (g *Gonoleks) Run(addr ...string) error {
 		portStr = addr[0]
 	}
 	address, networkProtocol := g.prepareServer(portStr)
-
 	if g.Prefork {
 		return g.runWithPrefork(address, networkProtocol, nil)
 	}
-
 	return g.runServer(address, networkProtocol, nil)
 }
 
@@ -185,11 +180,9 @@ func (g *Gonoleks) RunTLS(addr, certFile, keyFile string) error {
 		keyFile:  keyFile,
 	}
 	address, networkProtocol := g.prepareServer(addr)
-
 	if g.Prefork {
 		return g.runWithPrefork(address, networkProtocol, tlsConf)
 	}
-
 	return g.runServer(address, networkProtocol, tlsConf)
 }
 
@@ -213,7 +206,6 @@ func (g *Gonoleks) runServer(address, networkProtocol string, tlsConfig *tlsConf
 	if g.enableStartupMessage {
 		g.printStartupMessage(address)
 	}
-
 	if tlsConfig != nil {
 		return g.httpServer.ServeTLS(listener, tlsConfig.certFile, tlsConfig.keyFile)
 	}
@@ -228,7 +220,6 @@ func (g *Gonoleks) runWithPrefork(address, networkProtocol string, tlsConfig *tl
 	pf := prefork.New(g.httpServer)
 	pf.Reuseport = true
 	pf.Network = networkProtocol
-
 	if tlsConfig != nil {
 		return pf.ListenAndServeTLS(address, tlsConfig.certFile, tlsConfig.keyFile)
 	}
@@ -262,13 +253,11 @@ func (g *Gonoleks) registerRoute(method, path string, handlers handlersChain) *R
 	if g.CaseInSensitive {
 		path = strings.ToLower(path)
 	}
-
 	route := &Route{
 		Path:     path,
 		Method:   method,
 		Handlers: handlers,
 	}
-
 	// Add route to registered routes
 	g.registeredRoutes = append(g.registeredRoutes, route)
 	return route
@@ -279,7 +268,6 @@ func (g *Gonoleks) setupRouter() {
 	// Store global middlewares in router before clearing them
 	g.router.globalMiddleware = make(handlersChain, len(g.middlewares))
 	copy(g.router.globalMiddleware, g.middlewares)
-
 	for _, route := range g.registeredRoutes {
 		g.router.handle(route.Method, route.Path, append(g.middlewares, route.Handlers...))
 	}

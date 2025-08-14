@@ -85,16 +85,13 @@ func (te *TemplateEngine) LoadFiles(files ...string) error {
 	if len(files) == 0 {
 		return nil
 	}
-
 	te.mu.Lock()
 	defer te.mu.Unlock()
-
 	// Find the common root directory for all template files
 	var rootDir string
 	if len(files) > 0 {
 		// Get the directory from the first file
 		firstDir := filepath.Dir(files[0])
-
 		// Find the common parent directory
 		rootDir = firstDir
 		for _, file := range files[1:] {
@@ -111,19 +108,15 @@ func (te *TemplateEngine) LoadFiles(files ...string) error {
 			}
 		}
 	}
-
 	// Create Jet loader
 	loader := jet.NewOSFileSystemLoader(rootDir)
-
 	// Create Jet set with custom delimiters
 	te.set = jet.NewSet(
 		loader,
 		jet.WithDelims(te.delims[0], te.delims[1]),
 	)
-
 	// Add functions to the set
 	te.addFunctionsToSet()
-
 	return nil
 }
 
@@ -132,22 +125,17 @@ func (te *TemplateEngine) LoadFS(fs fs.FS, patterns ...string) error {
 	if len(patterns) == 0 {
 		return nil
 	}
-
 	te.mu.Lock()
 	defer te.mu.Unlock()
-
 	// Create a custom Jet loader for fs.FS
 	loader := &fsLoader{fs: fs}
-
 	// Create Jet set with custom delimiters
 	te.set = jet.NewSet(
 		loader,
 		jet.WithDelims(te.delims[0], te.delims[1]),
 	)
-
 	// Add functions to the set
 	te.addFunctionsToSet()
-
 	return nil
 }
 
@@ -155,7 +143,6 @@ func (te *TemplateEngine) LoadFS(fs fs.FS, patterns ...string) error {
 func (l *fsLoader) Open(name string) (io.ReadCloser, error) {
 	// Remove leading slash if present since fs.FS paths are relative
 	name = strings.TrimPrefix(name, "/")
-
 	file, err := l.fs.Open(name)
 	if err != nil {
 		return nil, err
@@ -167,7 +154,6 @@ func (l *fsLoader) Open(name string) (io.ReadCloser, error) {
 func (l *fsLoader) Exists(name string) bool {
 	// Remove leading slash if present since fs.FS paths are relative
 	name = strings.TrimPrefix(name, "/")
-
 	file, err := l.fs.Open(name)
 	if err != nil {
 		return false
@@ -197,7 +183,6 @@ func (te *TemplateEngine) addFunctionsToSet() {
 	if te.set == nil {
 		return
 	}
-
 	for name, fn := range te.funcMap {
 		te.set.AddGlobal(name, fn)
 	}
@@ -209,14 +194,12 @@ func (te *TemplateEngine) Instance(name string, data any) Render {
 	te.mu.RLock()
 	set := te.set
 	te.mu.RUnlock()
-
 	if set == nil {
 		return &jetRender{
 			template: nil,
 			data:     data,
 		}
 	}
-
 	// Get template from Jet set
 	template, err := set.GetTemplate(name)
 	if err != nil {
@@ -225,7 +208,6 @@ func (te *TemplateEngine) Instance(name string, data any) Render {
 			data:     data,
 		}
 	}
-
 	return &jetRender{
 		template: template,
 		data:     data,
@@ -237,7 +219,6 @@ func (jr *jetRender) Render(w io.Writer) error {
 	if jr.template == nil {
 		return ErrTemplateNotFound
 	}
-
 	// Use pooled VarMap to reduce allocations
 	vars := varMapPool.Get().(jet.VarMap)
 	defer func() {
@@ -245,14 +226,12 @@ func (jr *jetRender) Render(w io.Writer) error {
 		clear(vars)
 		varMapPool.Put(vars)
 	}()
-
 	// Convert data to variables if it's a map
 	if dataMap, ok := jr.data.(map[string]any); ok {
 		for key, value := range dataMap {
 			vars.Set(key, value)
 		}
 	}
-
 	// Execute template
 	return jr.template.Execute(w, vars, jr.data)
 }

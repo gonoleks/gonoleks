@@ -80,7 +80,6 @@ var (
 var DefaultLogFormatter = func(param LogFormatterParams) string {
 	styledStatus := getStatusStyle(param.StatusCode).Width(5).Align(lipgloss.Center).Render(fmt.Sprint(param.StatusCode))
 	styledMethod := getMethodStyle(param.Method).Render(fmt.Sprintf("%-7s", param.Method))
-
 	return fmt.Sprintf("%s| %13v | %15s | %s %q",
 		styledStatus,
 		param.Latency,
@@ -164,7 +163,6 @@ func LoggerWithFormatter(f LogFormatter) handlerFunc {
 // Example: os.Stdout, a file opened in write mode, a socket...
 func LoggerWithWriter(out io.Writer, notlogged ...string) handlerFunc {
 	log.SetOutput(out)
-
 	return LoggerWithConfig(LoggerConfig{
 		Output:    out,
 		SkipPaths: notlogged,
@@ -177,32 +175,24 @@ func LoggerWithConfig(conf LoggerConfig) handlerFunc {
 	if formatter == nil {
 		formatter = DefaultLogFormatter
 	}
-
 	// Check if using DefaultLogFormatter
 	usingDefaultLogFormatter := formatter == nil || fmt.Sprintf("%p", formatter) == fmt.Sprintf("%p", DefaultLogFormatter)
-
 	notlogged := conf.SkipPaths
-
 	var skip map[string]struct{}
-
 	if length := len(notlogged); length > 0 {
 		skip = make(map[string]struct{}, length)
-
 		for _, path := range notlogged {
 			skip[path] = struct{}{}
 		}
 	}
-
 	return func(c *Context) {
 		// Start timer
 		start := time.Now()
 		// Avoid string conversion - use byte slices directly
 		path := c.requestCtx.Path()      // Already []byte, no need to convert
 		raw := c.requestCtx.RequestURI() // Already []byte
-
 		// Process request
 		c.Next()
-
 		// Log only when path is not being skipped
 		// Convert to string only for map lookup
 		pathStr := string(path)
@@ -218,12 +208,10 @@ func LoggerWithConfig(conf LoggerConfig) handlerFunc {
 				BodySize:     len(c.requestCtx.Response.Body()),
 				Keys:         nil,
 			}
-
 			// Set path - avoid redundant string conversion
 			if len(raw) > 0 {
 				param.Path = pathStr
 			}
-
 			// Extract error message if any - avoid string conversion unless needed
 			if c.requestCtx.Response.StatusCode() >= StatusBadRequest {
 				body := c.requestCtx.Response.Body()
@@ -232,16 +220,13 @@ func LoggerWithConfig(conf LoggerConfig) handlerFunc {
 					param.ErrorMessage = string(body)
 				}
 			}
-
 			// Extract keys from context if available
 			if keys := c.requestCtx.UserValue("keys"); keys != nil {
 				if keyMap, ok := keys.(map[string]any); ok {
 					param.Keys = keyMap
 				}
 			}
-
 			logMessage := formatter(param)
-
 			if usingDefaultLogFormatter {
 				// Use Debug log level with timestamp for DefaultLogFormatter
 				log.SetReportTimestamp(true)
