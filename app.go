@@ -367,12 +367,6 @@ func (g *Gonoleks) Delims(left, right string) {
 	g.htmlRender.(*TemplateEngine).SetDelims(left, right)
 }
 
-// Handler returns the fasthttp.RequestHandler for the gonoleks instance
-// This allows external access to the underlying router handler for testing and benchmarking
-func (g *Gonoleks) Handler() fasthttp.RequestHandler {
-	return g.router.Handler
-}
-
 // printStartupMessage displays server startup information in the console
 func (g *Gonoleks) printStartupMessage(addr string) {
 	if prefork.IsChild() {

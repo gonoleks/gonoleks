@@ -105,35 +105,43 @@ func (c *Context) AbortWithStatus(code int) {
 	c.requestCtx.Response.SetStatusCode(code)
 }
 
-// AbortWithStatusJSON calls `Abort()` and then `JSON` internally
+// AbortWithStatusPureJSON calls `Abort()` and then `PureJSON()` internally
+// This method stops the chain, writes the status code and return a JSON body without escaping
+// It automatically sets the Content-Type header to "application/json"
+func (c *Context) AbortWithStatusPureJSON(code int, jsonObj any) error {
+	c.Abort()
+	return c.PureJSON(code, jsonObj)
+}
+
+// AbortWithStatusJSON calls `Abort()` and then `JSON()` internally
 // This method stops the chain, writes the status code and return a JSON body
 // It automatically sets the Content-Type header to "application/json"
-func (c *Context) AbortWithStatusJSON(status int, jsonObj any) error {
+func (c *Context) AbortWithStatusJSON(code int, jsonObj any) error {
 	c.Abort()
-	return c.JSON(status, jsonObj)
+	return c.JSON(code, jsonObj)
 }
 
 // AbortWithError calls `AbortWithStatus()` and logs the given error
 func (c *Context) AbortWithError(code int, err error) error {
 	c.AbortWithStatus(code)
-	log.Error("Request aborted with error", "error", err, "code", code)
+	log.Error(err, "code", code)
 	return err
 }
 
 // Set is used to store a new key/value pair exclusively for this context
-func (c *Context) Set(key string, value any) {
-	if key == "" {
+func (c *Context) Set(key, value any) {
+	if key == nil {
 		return
 	}
 
 	if c.requestCtx.UserValue("keys") == nil {
-		c.requestCtx.SetUserValue("keys", make(map[string]any))
+		c.requestCtx.SetUserValue("keys", make(map[any]any))
 	}
 
-	keys, ok := c.requestCtx.UserValue("keys").(map[string]any)
+	keys, ok := c.requestCtx.UserValue("keys").(map[any]any)
 	if !ok {
 		// Reset if type assertion fails
-		keys = make(map[string]any)
+		keys = make(map[any]any)
 		c.requestCtx.SetUserValue("keys", keys)
 	}
 
@@ -142,8 +150,8 @@ func (c *Context) Set(key string, value any) {
 
 // Get returns the value for the given key, ie: (value, true)
 // If the value does not exist it returns (nil, false)
-func (c *Context) Get(key string) (value any, exists bool) {
-	if key == "" {
+func (c *Context) Get(key any) (value any, exists bool) {
+	if key == nil {
 		return nil, false
 	}
 
@@ -151,7 +159,7 @@ func (c *Context) Get(key string) (value any, exists bool) {
 		return nil, false
 	}
 
-	keys, ok := c.requestCtx.UserValue("keys").(map[string]any)
+	keys, ok := c.requestCtx.UserValue("keys").(map[any]any)
 	if !ok {
 		return nil, false
 	}
@@ -161,7 +169,7 @@ func (c *Context) Get(key string) (value any, exists bool) {
 }
 
 // MustGet returns the value for the given key if it exists, otherwise it panics
-func (c *Context) MustGet(key string) any {
+func (c *Context) MustGet(key any) any {
 	if value, exists := c.Get(key); exists {
 		return value
 	}
@@ -200,7 +208,7 @@ func (c *Context) DefaultQuery(key, defaultValue string) string {
 	return getString(v)
 }
 
-// GetQuery is like Query(), it returns the keyed url query value
+// GetQuery is like `Query()`, it returns the keyed url query value
 // if it exists `(value, true)` (even when the value is an empty string),
 // otherwise it returns `("", false)`
 //
@@ -284,6 +292,29 @@ func (c *Context) PostForm(key string) string {
 	return ""
 }
 
+// DefaultPostForm returns the specified key from a POST urlencoded form or multipart form
+// when it exists, otherwise it returns the specified defaultValue string
+// See: `PostForm()` and `GetPostForm()` for further information
+func (c *Context) DefaultPostForm(key, defaultValue string) string {
+	// First check if it's a urlencoded form
+	if v := c.requestCtx.PostArgs().PeekBytes(getBytes(key)); len(v) > 0 {
+		return getString(v)
+	}
+
+	// Then check if it's a multipart form
+	form, err := c.requestCtx.MultipartForm()
+	if err != nil {
+		return defaultValue
+	}
+
+	// Check if the key exists in the multipart form
+	if values := form.Value[key]; len(values) > 0 {
+		return values[0]
+	}
+
+	return defaultValue
+}
+
 // GetPostForm is like PostForm(key). It returns the specified key from a POST urlencoded
 // form or multipart form when it exists `(value, true)` (even when the value is an empty string),
 // otherwise it returns ("", false)
@@ -310,29 +341,6 @@ func (c *Context) GetPostForm(key string) (string, bool) {
 	}
 
 	return "", false
-}
-
-// DefaultPostForm returns the specified key from a POST urlencoded form or multipart form
-// when it exists, otherwise it returns the specified defaultValue string
-// See: PostForm() and GetPostForm() for further information
-func (c *Context) DefaultPostForm(key, defaultValue string) string {
-	// First check if it's a urlencoded form
-	if v := c.requestCtx.PostArgs().PeekBytes(getBytes(key)); len(v) > 0 {
-		return getString(v)
-	}
-
-	// Then check if it's a multipart form
-	form, err := c.requestCtx.MultipartForm()
-	if err != nil {
-		return defaultValue
-	}
-
-	// Check if the key exists in the multipart form
-	if values := form.Value[key]; len(values) > 0 {
-		return values[0]
-	}
-
-	return defaultValue
 }
 
 // PostFormArray returns a slice of strings for a given form key

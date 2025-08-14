@@ -73,13 +73,13 @@ func resolveAddress(portStr string) string {
 }
 
 // detectNetworkProtocol determines the network protocol based on the address format
-func detectNetworkProtocol(address string) string {
+func detectNetworkProtocol(addr string) string {
 	// IPv6 addresses are enclosed in brackets or contain multiple colons
-	if strings.Contains(address, "[") || strings.Count(address, ":") > 1 {
+	if strings.Contains(addr, "[") || strings.Count(addr, ":") > 1 {
 		return NetworkTCP6
 	}
 	// IPv4 addresses contain dots
-	if strings.Contains(address, ".") {
+	if strings.Contains(addr, ".") {
 		return NetworkTCP4
 	}
 	// Default to IPv4 for ambiguous cases
