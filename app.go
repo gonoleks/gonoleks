@@ -80,17 +80,17 @@ type Options struct {
 
 // Gonoleks is the main struct for the application
 type Gonoleks struct {
+	htmlRender       HTMLRender
+	httpServer       *fasthttp.Server
+	router           *router
+	address          string
+	secureJsonPrefix string
 	RouteHandler
-	httpServer           *fasthttp.Server
-	router               *router
-	registeredRoutes     []*Route
-	address              string
-	middlewares          handlersChain
-	htmlRender           HTMLRender
-	secureJsonPrefix     string
+	registeredRoutes []*Route
+	middlewares      handlersChain
+	Options
 	enableStartupMessage bool
 	enableLogging        bool
-	Options
 }
 
 // Route struct stores information about a registered HTTP route

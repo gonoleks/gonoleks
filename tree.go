@@ -16,11 +16,11 @@ const (
 
 // node represents a single element in the routing tree structure
 type node struct {
-	path     string           // Path segment this node represents
 	param    *node            // Child parameter node (if any)
 	children map[string]*node // Static child nodes mapped by path segment
-	nType    nodeType         // Type classification of this node
+	path     string           // Path segment this node represents
 	handlers handlersChain    // Handler functions associated with this node
+	nType    nodeType         // Type classification of this node
 }
 
 // addRoute adds a node with the provided handlers to the specified path

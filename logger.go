@@ -13,17 +13,14 @@ import (
 
 // LogFormatterParams contains the parameters for custom log formatting
 type LogFormatterParams struct {
-	// Request contains the HTTP request
-	Request *fasthttp.Request
-
 	// TimeStamp shows the time after the server returns a response (auto-styled with faint when formatted)
 	TimeStamp time.Time
 
-	// StatusCode is HTTP response code
-	StatusCode int
+	// Request contains the HTTP request
+	Request *fasthttp.Request
 
-	// Latency is how much time the server cost to process a certain request (auto-styled with faint)
-	Latency time.Duration
+	// Keys are the keys set on the request's context
+	Keys map[string]any
 
 	// ClientIP equals Context.ClientIP()
 	ClientIP string
@@ -37,11 +34,14 @@ type LogFormatterParams struct {
 	// ErrorMessage is set if error has occurred in processing the request
 	ErrorMessage string
 
+	// StatusCode is HTTP response code
+	StatusCode int
+
+	// Latency is how much time the server cost to process a certain request (auto-styled with faint)
+	Latency time.Duration
+
 	// BodySize is the size of the Response Body
 	BodySize int
-
-	// Keys are the keys set on the request's context
-	Keys map[string]any
 }
 
 // LoggerConfig defines the config for Logger middleware

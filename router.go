@@ -19,41 +19,41 @@ type ultraFastRouteCache struct {
 
 // ultraFastCacheEntry is cache-line aligned for optimal CPU performance
 type ultraFastCacheEntry struct {
-	hash     uint32        // Pre-computed hash
 	handlers handlersChain // Handler chain
+	hash     uint32        // Pre-computed hash
 	_        [36]byte      // Padding to 64-byte cache line
 }
 
 // FastRouter is an optimized router for static routes
 // Uses hash-based lookups for zero-allocation performance
 type FastRouter struct {
+	// Pre-allocated context pool
+	ctxPool sync.Pool
+
 	// Hash-based route storage for zero allocations
 	routeHashes map[uint64]handlersChain
 
 	// Ultra-fast route cache with CPU cache optimization
 	ultraCache *ultraFastRouteCache
 
-	// Pre-allocated context pool
-	ctxPool sync.Pool
+	// Hash table for common routes (powers of 2 for bit masking)
+	commonRoutes [1024]commonRoute
 
 	// Cache-aligned route cache using hashes
 	routeCache [256]hashCacheEntry
-
-	// Hash table for common routes (powers of 2 for bit masking)
-	commonRoutes [1024]commonRoute
 }
 
 // hashCacheEntry represents a hash-based cache entry for zero allocations
 type hashCacheEntry struct {
-	hash     uint64
 	handlers handlersChain
+	hash     uint64
 	_        [40]byte // Cache line padding to prevent false sharing
 }
 
 // commonRoute represents frequently accessed routes
 type commonRoute struct {
-	key      uint32
 	handlers handlersChain
+	key      uint32
 }
 
 // router handles HTTP request routing

@@ -27,9 +27,9 @@ type handlersChain []handlerFunc
 type Context struct {
 	requestCtx  *fasthttp.RequestCtx
 	paramValues map[string]string
+	fullPath    string
 	handlers    handlersChain
 	index       int
-	fullPath    string
 }
 
 // Context returns the underlying fasthttp RequestCtx object

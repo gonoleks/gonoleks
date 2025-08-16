@@ -23,8 +23,8 @@ type Render interface {
 // TemplateEngine implements HTMLRender using Jet template engine
 type TemplateEngine struct {
 	set     *jet.Set
-	delims  [2]string
 	funcMap map[string]any
+	delims  [2]string
 	mu      sync.RWMutex
 }
 
