@@ -61,6 +61,11 @@ tidy:
 betteralign:
 	go run github.com/dkorunic/betteralign/cmd/betteralign@latest -test_files -generated_files -apply ./...
 
+## modernize: Run modernize analysis
+.PHONY: modernize
+modernize:
+	go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix -test ./...
+
 ## generate: Generate code
 .PHONY: generate
 generate:
