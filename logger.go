@@ -231,11 +231,11 @@ func LoggerWithConfig(conf LoggerConfig) handlerFunc {
 				// Use Debug log level with timestamp for DefaultLogFormatter
 				log.SetReportTimestamp(true)
 				log.SetLevel(log.DebugLevel)
-				log.Debugf(logMessage)
+				log.Debug(logMessage)
 			} else {
 				// Use regular Printf without log level and timestamp for custom formatters
 				log.SetReportTimestamp(false)
-				log.Printf(logMessage)
+				log.Print(logMessage)
 			}
 		}
 	}

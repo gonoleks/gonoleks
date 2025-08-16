@@ -1,6 +1,7 @@
 package gonoleks
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -94,9 +95,9 @@ func (n *node) setHandlers(currentNode *node, handlers handlersChain) {
 func (n *node) handleParameterSegment(currentNode *node, pathSegment, originalPath string, paramNames map[string]bool) *node {
 	if currentNode.param != nil {
 		if currentNode.param.path[0] == '*' {
-			panic("parameter " + pathSegment + " conflicts with catch all (*) route in path '" + originalPath + "'")
+			panic(fmt.Sprintf("parameter %s conflicts with catch all (*) route in path %q", pathSegment, originalPath))
 		} else if currentNode.param.path != pathSegment {
-			panic("parameter " + pathSegment + " in new path '" + originalPath + "' conflicts with existing wildcard '" + currentNode.param.path + "'")
+			panic(fmt.Sprintf("parameter %s in new path %q conflicts with existing wildcard %q", pathSegment, originalPath, currentNode.param.path))
 		}
 	}
 	if currentNode.param == nil {

@@ -145,7 +145,7 @@ func createInstance(debugMode bool) *Gonoleks {
 		app: g,
 	}
 	// Pre-warm the pool with more contexts to reduce allocation overhead
-	for i := 0; i < 16; i++ {
+	for range 16 {
 		ctx := g.router.pool.Get().(*Context)
 		g.router.pool.Put(ctx)
 	}
@@ -269,7 +269,7 @@ func (g *Gonoleks) setupRouter() {
 	g.router.globalMiddleware = make(handlersChain, len(g.middlewares))
 	copy(g.router.globalMiddleware, g.middlewares)
 	for _, route := range g.registeredRoutes {
-		g.router.handle(route.Method, route.Path, append(g.middlewares, route.Handlers...))
+		g.router.handle(route.Method, route.Path, route.Handlers)
 	}
 	g.registeredRoutes = nil
 	g.middlewares = nil

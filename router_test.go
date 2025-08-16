@@ -243,13 +243,13 @@ func TestRouterPerformance(t *testing.T) {
 	assert.NotEqual(t, hash1, hash3, "Different data should produce different hash")
 
 	// Test cache collision handling
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		path := "/route" + string(rune(i))
 		fr.AddRoute(MethodGet, path, handlers)
 	}
 
 	// Verify all routes can be found
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		path := "/route" + string(rune(i))
 		result, found := fr.FastLookup(MethodGet, path)
 		assert.True(t, found, "Route should be found")
@@ -264,11 +264,11 @@ func TestRouterPerformance(t *testing.T) {
 
 	// Test concurrent access
 	done := make(chan bool, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		go func(routeNum int) {
 			defer func() { done <- true }()
 			path := "/route" + string(rune(routeNum))
-			for j := 0; j < 50; j++ {
+			for range 50 {
 				result, found := fr.FastLookup(MethodGet, path)
 				assert.True(t, found, "Route should be found in concurrent access")
 				assert.Equal(t, handlers, result, "Handlers should match")
@@ -277,7 +277,7 @@ func TestRouterPerformance(t *testing.T) {
 	}
 
 	// Wait for completion
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		<-done
 	}
 }

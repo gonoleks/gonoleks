@@ -161,7 +161,7 @@ func (c *Context) MustGet(key any) any {
 	if value, exists := c.Get(key); exists {
 		return value
 	}
-	panic(fmt.Sprintf("Key %q does not exist", key))
+	panic(fmt.Sprintf("key %q does not exist", key))
 }
 
 // Param retrieves the value of a URL path parameter specified by the given key

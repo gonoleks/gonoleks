@@ -1,6 +1,7 @@
 package gonoleks
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"unsafe"
@@ -118,9 +119,9 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 	} else if method == "" {
 		panic("router.handle: HTTP method cannot be empty")
 	} else if path[0] != '/' {
-		panic("router.handle: path must begin with '/' character, got '" + path + "'")
+		panic(fmt.Sprintf("router.handle: path must begin with %q character, got %q", "/", path))
 	} else if len(handlers) == 0 {
-		panic("router.handle: no handler functions provided for route '" + method + " " + path + "'")
+		panic(fmt.Sprintf("router.handle: no handler functions provided for route %s %q", method, path))
 	}
 	// Initialize tree if it's empty
 	if r.trees == nil {
@@ -274,15 +275,15 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 	var root *node
 	// Reorder switch cases by frequency for better branch prediction
 	switch method {
-	case MethodGet: // Most common
+	case MethodGet:
 		root = r.getTree
-	case MethodPost: // Second most common
+	case MethodPost:
 		root = r.postTree
-	case MethodPut: // Third most common
+	case MethodPut:
 		root = r.putTree
-	case MethodDelete, MethodPatch: // Less common but still frequent
+	case MethodDelete, MethodPatch:
 		root = r.trees[method]
-	default: // Least common methods
+	default:
 		root = r.trees[method]
 	}
 	if root == nil {
@@ -351,7 +352,7 @@ func NewFastRouter() *FastRouter {
 		},
 	}
 	// Pre-warm the context pool
-	for i := 0; i < 32; i++ {
+	for range 32 {
 		ctx := fr.ctxPool.Get().(*Context)
 		fr.ctxPool.Put(ctx)
 	}
