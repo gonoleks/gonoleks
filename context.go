@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io/fs"
+	"maps"
 	"net/url"
 	"os"
 	"strconv"
@@ -41,18 +42,14 @@ func (c *Context) Context() *fasthttp.RequestCtx {
 // This has to be used when the context has to be passed to a goroutine
 func (c *Context) Copy() *Context {
 	contextCopy := &Context{
-		requestCtx: c.requestCtx,
-		index:      c.index,
+		requestCtx: nil,
 		fullPath:   c.fullPath,
+		index:      c.index,
 	}
-	// Copy parameter map
 	if c.paramValues != nil {
 		contextCopy.paramValues = make(map[string]string, len(c.paramValues))
-		for k, v := range c.paramValues {
-			contextCopy.paramValues[k] = v
-		}
+		maps.Copy(contextCopy.paramValues, c.paramValues)
 	}
-	// Copy handler chain
 	if c.handlers != nil {
 		contextCopy.handlers = make(handlersChain, len(c.handlers))
 		copy(contextCopy.handlers, c.handlers)
