@@ -198,8 +198,6 @@ func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 // Handler is the main request handler that processes incoming HTTP requests
 // It manages context lifecycle and routes requests to appropriate handlers
 func (r *router) Handler(fctx *fasthttp.RequestCtx) {
-	// Set Gonoleks app instance for template engine access
-	fctx.SetUserValue("gonoleksApp", r.app)
 	// Acquire context from pool
 	ctx := r.acquireCtx(fctx)
 	defer r.releaseCtx(ctx)

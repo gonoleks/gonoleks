@@ -503,24 +503,6 @@ func (c *Context) Cookie(name string) (string, error) {
 	return val, nil
 }
 
-// HTML renders an HTML template with data
-func (c *Context) HTML(code int, name string, obj any) {
-	k, ok := c.requestCtx.UserValue("gonoleksApp").(*Gonoleks)
-	if !ok || k.htmlRender == nil {
-		_ = c.AbortWithError(StatusInternalServerError, ErrTemplateEngineNotSet)
-		return
-	}
-	// Get the template renderer instance
-	render := k.htmlRender.Instance(name, obj)
-	// Set status code and content type
-	c.requestCtx.Response.SetStatusCode(code)
-	c.requestCtx.Response.Header.Set(HeaderContentType, MIMETextHTMLCharsetUTF8)
-	// Render the template
-	if err := render.Render(c.requestCtx); err != nil {
-		_ = c.AbortWithError(StatusInternalServerError, fmt.Errorf("%v: %w", ErrHTMLTemplateRender, err))
-	}
-}
-
 // JSON serializes the given struct as JSON into the response body
 // It also sets the Content-Type as "application/json; charset=utf-8"
 func (c *Context) JSON(code int, obj any) error {

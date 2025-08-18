@@ -428,34 +428,6 @@ func TestShutdown(t *testing.T) {
 	})
 }
 
-func TestHTMLRendering(t *testing.T) {
-	app := New()
-
-	// Create a temporary template file
-	tmpFile, err := os.CreateTemp("", "gonoleks-template-*.html")
-	require.NoError(t, err, "Failed to create temporary template file")
-	defer func() {
-		if removeErr := os.Remove(tmpFile.Name()); removeErr != nil {
-			t.Logf("Failed to remove temporary template file: %v", err)
-		}
-	}()
-
-	// Write a simple template
-	templateContent := "<h1>Hello, {{.Name}}!</h1>"
-	_, err = tmpFile.WriteString(templateContent)
-	require.NoError(t, err, "Failed to write to temporary template file")
-	if closeErr := tmpFile.Close(); closeErr != nil {
-		t.Logf("Failed to close temporary template file: %v", err)
-	}
-
-	// Load the template
-	err = app.LoadHTMLFiles(tmpFile.Name())
-	assert.NoError(t, err, "LoadHTMLFiles should not return an error")
-
-	// Access the Gonoleks struct directly (no type assertion needed)
-	assert.NotNil(t, app.htmlRender, "HTML renderer should be created")
-}
-
 func TestDefaultOptions(t *testing.T) {
 	app := Default()
 	defaultConfig := defaultOptions()

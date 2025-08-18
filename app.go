@@ -1,7 +1,6 @@
 package gonoleks
 
 import (
-	"io/fs"
 	"net"
 	"os"
 	"strings"
@@ -80,7 +79,6 @@ type Options struct {
 
 // Gonoleks is the main struct for the application
 type Gonoleks struct {
-	htmlRender       HTMLRender
 	httpServer       *fasthttp.Server
 	router           *router
 	address          string
@@ -311,48 +309,6 @@ func (g *Gonoleks) SecureJsonPrefix(prefix string) {
 // This can be done by setting c.Context.URI.SetPath to your new target
 func (g *Gonoleks) HandleContext(c *Context) {
 	g.router.Handler(c.requestCtx)
-}
-
-// HTMLGlob loads HTML templates with the given pattern
-// and associates the result with the HTML renderer
-func (g *Gonoleks) LoadHTMLGlob(pattern string) error {
-	if g.htmlRender == nil {
-		g.htmlRender = NewTemplateEngine()
-	}
-	return g.htmlRender.(*TemplateEngine).LoadGlob(pattern)
-}
-
-// LoadHTMLFiles loads HTML templates from the given files
-func (g *Gonoleks) LoadHTMLFiles(files ...string) error {
-	if g.htmlRender == nil {
-		g.htmlRender = NewTemplateEngine()
-	}
-	return g.htmlRender.(*TemplateEngine).LoadFiles(files...)
-}
-
-// LoadHTMLFS loads an fs.FS and a slice of patterns
-// and associates the result with HTML renderer
-func (g *Gonoleks) LoadHTMLFS(fs fs.FS, patterns ...string) error {
-	if g.htmlRender == nil {
-		g.htmlRender = NewTemplateEngine()
-	}
-	return g.htmlRender.(*TemplateEngine).LoadFS(fs, patterns...)
-}
-
-// SetFuncMap sets template function map
-func (g *Gonoleks) SetFuncMap(funcMap map[string]any) {
-	if g.htmlRender == nil {
-		g.htmlRender = NewTemplateEngine()
-	}
-	g.htmlRender.(*TemplateEngine).SetFuncMap(funcMap)
-}
-
-// Delims sets template delimiters
-func (g *Gonoleks) Delims(left, right string) {
-	if g.htmlRender == nil {
-		g.htmlRender = NewTemplateEngine()
-	}
-	g.htmlRender.(*TemplateEngine).SetDelims(left, right)
 }
 
 // printStartupMessage displays server startup information in the console
