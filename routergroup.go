@@ -103,18 +103,11 @@ func (rh *RouteHandler) Handle(httpMethod, relativePath string, handlers ...hand
 // Any registers a route that matches all the HTTP methods
 // GET, POST, PUT, PATCH, HEAD, OPTIONS, DELETE, CONNECT, TRACE
 func (rh *RouteHandler) Any(relativePath string, handlers ...handlerFunc) []*Route {
-	methods := []string{
-		MethodGet,
-		MethodPost,
-		MethodPut,
-		MethodPatch,
-		MethodHead,
-		MethodOptions,
-		MethodDelete,
-		MethodConnect,
-		MethodTrace,
+	anyMethods := []string{
+		MethodGet, MethodPost, MethodPut, MethodPatch, MethodHead,
+		MethodOptions, MethodDelete, MethodConnect, MethodTrace,
 	}
-	return rh.Match(methods, relativePath, handlers...)
+	return rh.Match(anyMethods, relativePath, handlers...)
 }
 
 // Match registers a route that matches the specified methods that you declared

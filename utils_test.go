@@ -11,19 +11,19 @@ import (
 
 func TestResolveAddress(t *testing.T) {
 	// Test port resolution with colon
-	assert.Equal(t, globalIpv4Addr+":5678", resolveAddress(":5678"))
+	assert.Equal(t, wildcardIPv4Addr+":5678", resolveAddress(":5678"))
 	// Test empty port (default)
-	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress(""))
+	assert.Equal(t, wildcardIPv4Addr+defaultPort, resolveAddress(""))
 	// Test invalid ports (fallback to default)
-	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress(":abcd"))
-	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress(":70000"))
-	assert.Equal(t, globalIpv4Addr+defaultPort, resolveAddress("5678"))
+	assert.Equal(t, wildcardIPv4Addr+defaultPort, resolveAddress(":abcd"))
+	assert.Equal(t, wildcardIPv4Addr+defaultPort, resolveAddress(":70000"))
+	assert.Equal(t, wildcardIPv4Addr+defaultPort, resolveAddress("5678"))
 
 	// Test explicit addresses
 	assert.Equal(t, "127.0.0.1:3000", resolveAddress("127.0.0.1:3000"))
-	assert.Equal(t, globalIpv4Addr+":8080", resolveAddress("0.0.0.0:8080"))
+	assert.Equal(t, wildcardIPv4Addr+":8080", resolveAddress("0.0.0.0:8080"))
 	assert.Equal(t, "[::1]:3000", resolveAddress("[::1]:3000"))
-	assert.Equal(t, globalIpv6Addr+":8080", resolveAddress("[::]:8080"))
+	assert.Equal(t, wildcardIPv6Addr+":8080", resolveAddress("[::]:8080"))
 }
 
 func TestGetBytes(t *testing.T) {

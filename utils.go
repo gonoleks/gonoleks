@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	globalIpv4Addr = "0.0.0.0" // Wildcard IPv4 address (binds to all interfaces)
-	globalIpv6Addr = "[::]"    // Wildcard IPv6 address (binds to all interfaces)
-	defaultPort    = ":8080"   // Fallback port
+	wildcardIPv4Addr = "0.0.0.0"
+	wildcardIPv6Addr = "[::]"
+	defaultPort      = ":8080"
 )
 
 // H is a shortcut for map[string]any
@@ -44,15 +44,15 @@ func (h H) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 func resolveAddress(portStr string) string {
 	if portStr == "" {
 		log.Warnf("Empty port format, using default port %s", defaultPort)
-		return globalIpv4Addr + defaultPort
+		return wildcardIPv4Addr + defaultPort
 	}
 	if strings.HasPrefix(portStr, ":") {
 		portNum, err := strconv.Atoi(portStr[1:])
 		if err != nil || portNum < 1 || portNum > 65535 {
 			log.With("port", portStr).Warnf("Invalid port format, using default port %s", defaultPort)
-			return globalIpv4Addr + defaultPort
+			return wildcardIPv4Addr + defaultPort
 		}
-		return globalIpv4Addr + portStr
+		return wildcardIPv4Addr + portStr
 	}
 	// If it doesn't start with colon but contains colon, it's a complete address
 	if strings.Contains(portStr, ":") {
@@ -61,7 +61,7 @@ func resolveAddress(portStr string) string {
 	// If there's no colon at all, it's invalid (port number without colon)
 	// Fall back to default port
 	log.With("port", portStr).Warnf("Invalid port format, using default port %s", defaultPort)
-	return globalIpv4Addr + defaultPort
+	return wildcardIPv4Addr + defaultPort
 }
 
 // detectNetworkProtocol determines the network protocol based on the address format
