@@ -57,8 +57,8 @@ func (c *Context) Copy() *Context {
 	return contextCopy
 }
 
-// FullPath returns a matched route full path
-// For not found routes returns an empty string
+// FullPath returns the matched route's full path
+// For not found routes, it returns an empty string
 //
 //	app.GET("/user/:id", func(c *gonoleks.Context) {
 //	    c.FullPath() == "/user/:id" // true
@@ -85,8 +85,8 @@ func (c *Context) IsAborted() bool {
 }
 
 // Abort prevents pending handlers from being called. Note that this will not stop the current handler
-// Let's say you have an authorization middleware that validates that the current request is authorized
-// If the authorization fails (ex: the password does not match), call Abort to ensure the remaining handlers
+// For example, if you have an authorization middleware that validates the current request is authorized
+// If the authorization fails (e.g., the password does not match), call Abort to ensure the remaining handlers
 // for this request are not called
 func (c *Context) Abort() {
 	c.index = len(c.handlers)
@@ -100,7 +100,7 @@ func (c *Context) AbortWithStatus(code int) {
 }
 
 // AbortWithStatusPureJSON calls `Abort()` and then `PureJSON()` internally
-// This method stops the chain, writes the status code and return a JSON body without escaping
+// This method stops the chain, writes the status code, and return a JSON body without escaping
 // It automatically sets the Content-Type header to "application/json"
 func (c *Context) AbortWithStatusPureJSON(code int, jsonObj any) error {
 	c.Abort()
@@ -108,7 +108,7 @@ func (c *Context) AbortWithStatusPureJSON(code int, jsonObj any) error {
 }
 
 // AbortWithStatusJSON calls `Abort()` and then `JSON()` internally
-// This method stops the chain, writes the status code and return a JSON body
+// This method stops the chain, writes the status code, and return a JSON body
 // It automatically sets the Content-Type header to "application/json"
 func (c *Context) AbortWithStatusJSON(code int, jsonObj any) error {
 	c.Abort()
@@ -139,8 +139,8 @@ func (c *Context) Set(key, value any) {
 	keys[key] = value
 }
 
-// Get returns the value for the given key, ie: (value, true)
-// If the value does not exist it returns (nil, false)
+// Get returns the value for the given key, i.e., (value, true)
+// If the value does not exist, it returns (nil, false)
 func (c *Context) Get(key any) (value any, exists bool) {
 	if key == nil {
 		return nil, false
@@ -169,11 +169,12 @@ func (c *Context) Param(key string) string {
 	return c.paramValues[key]
 }
 
-// AddParam adds param to context and
-// replaces path param key with given value for e2e testing purposes
-// Example Route: "/user/:id"
-// AddParam("id", 1)
-// Result: "/user/1"
+// AddParam adds a parameter to the context and
+// replaces the path parameter key with the given value for e2e testing purposes
+//
+//	Example Route: "/user/:id"
+//	AddParam("id", 1)
+//	Result: "/user/1"
 func (c *Context) AddParam(key, value string) {
 	if c.paramValues == nil {
 		c.paramValues = make(map[string]string)
@@ -213,7 +214,7 @@ func (c *Context) GetQuery(key string) (string, bool) {
 }
 
 // QueryArray returns a slice of strings for a given query key
-// The length of the slice depends on the number of params with the given key
+// The length of the slice depends on the number of parameters with the given key
 func (c *Context) QueryArray(key string) []string {
 	values := []string{}
 	for k, v := range c.requestCtx.QueryArgs().All() {
@@ -323,7 +324,7 @@ func (c *Context) GetPostForm(key string) (string, bool) {
 }
 
 // PostFormArray returns a slice of strings for a given form key
-// The length of the slice depends on the number of params with the given key
+// The length of the slice depends on the number of parameters with the given key
 func (c *Context) PostFormArray(key string) []string {
 	values := []string{}
 	// First check if it's a urlencoded form
@@ -442,7 +443,7 @@ func (c *Context) Header(key, value string) *Context {
 	return c
 }
 
-// GetHeader returns value from request headers
+// GetHeader returns the value from request headers
 func (c *Context) GetHeader(key string) string {
 	return getString(c.requestCtx.Request.Header.PeekBytes(getBytes(key)))
 }
@@ -488,7 +489,7 @@ func (c *Context) SetCookie(name, value string, maxAge int, path, domain string,
 }
 
 // Cookie returns the named cookie provided in the request or error if not found
-// And return the named cookie is unescaped
+// The returned named cookie is unescaped
 // If multiple cookies match the given name, only one cookie will be returned
 func (c *Context) Cookie(name string) (string, error) {
 	cookie := c.requestCtx.Request.Header.Cookie(name)

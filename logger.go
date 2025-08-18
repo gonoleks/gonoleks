@@ -34,7 +34,7 @@ type LogFormatterParams struct {
 	// ErrorMessage is set if error has occurred in processing the request
 	ErrorMessage string
 
-	// StatusCode is HTTP response code
+	// StatusCode is the HTTP response code
 	StatusCode int
 
 	// Latency is how much time the server cost to process a certain request (auto-styled with faint)
@@ -52,7 +52,7 @@ type LoggerConfig struct {
 	// Output is a writer where logs are written
 	Output io.Writer // Default = os.Stdout
 
-	// SkipPaths is an url path array which logs are not written
+	// SkipPaths is a URL path array which logs are not written
 	SkipPaths []string
 }
 
@@ -152,15 +152,15 @@ func Logger() handlerFunc {
 	return LoggerWithConfig(LoggerConfig{})
 }
 
-// LoggerWithFormatter instance a Logger middleware with the specified log format function
+// LoggerWithFormatter instances a Logger middleware with the specified log format function
 func LoggerWithFormatter(f LogFormatter) handlerFunc {
 	return LoggerWithConfig(LoggerConfig{
 		Formatter: f,
 	})
 }
 
-// LoggerWithWriter instance a Logger middleware with the specified writer buffer
-// Example: os.Stdout, a file opened in write mode, a socket...
+// LoggerWithWriter instances a Logger middleware with the specified writer buffer
+// For example: os.Stdout, a file opened in write mode, or a socket
 func LoggerWithWriter(out io.Writer, notlogged ...string) handlerFunc {
 	log.SetOutput(out)
 	return LoggerWithConfig(LoggerConfig{
@@ -169,7 +169,7 @@ func LoggerWithWriter(out io.Writer, notlogged ...string) handlerFunc {
 	})
 }
 
-// LoggerWithConfig instance a Logger middleware with config
+// LoggerWithConfig instances a Logger middleware with config
 func LoggerWithConfig(conf LoggerConfig) handlerFunc {
 	formatter := conf.Formatter
 	if formatter == nil {

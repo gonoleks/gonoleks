@@ -26,7 +26,7 @@ type ultraFastCacheEntry struct {
 }
 
 // FastRouter is an optimized router for static routes
-// Uses hash-based lookups for zero-allocation performance
+// It uses hash-based lookups for zero-allocation performance
 type FastRouter struct {
 	// Pre-allocated context pool
 	ctxPool sync.Pool
@@ -63,10 +63,10 @@ type router struct {
 	noRoute          handlersChain            // Handlers for 404 Not Found responses
 	noMethod         handlersChain            // Handlers for 405 Method Not Allowed responses
 	pool             sync.Pool                // Reused context objects
-	app              *Gonoleks                // Reference to the gonoleks app instance
-	getTree          *node                    // Lookup for GET HTTP method
-	postTree         *node                    // Lookup for POST HTTP method
-	putTree          *node                    // Lookup for PUT HTTP method
+	app              *Gonoleks                // Reference to the Gonoleks app instance
+	getTree          *node                    // Lookup tree for GET HTTP method
+	postTree         *node                    // Lookup tree for POST HTTP method
+	putTree          *node                    // Lookup tree for PUT HTTP method
 	staticRoutes     map[string]handlersChain // Static route cache for O(1) lookup
 	fastRouter       *FastRouter              // Router for static routes
 	globalMiddleware handlersChain            // Global middleware for all requests including errors
@@ -140,7 +140,7 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 		r.staticRoutes[routeKey] = handlers
 		r.fastRouter.AddRoute(method, path, handlers)
 	}
-	// Get root of method if it exists, otherwise create it
+	// Get root of method tree if it exists, otherwise create it
 	root := r.trees[method]
 	if root == nil {
 		root = createRootNode()
@@ -159,7 +159,7 @@ func (r *router) handle(method, path string, handlers handlersChain) {
 }
 
 // allowed determines which HTTP methods are supported for a given path
-// Returns a comma-separated list of allowed methods for the path
+// It returns a comma-separated list of allowed methods for the path
 func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 	var allow string
 	pathLen := len(path)
@@ -198,7 +198,7 @@ func (r *router) allowed(reqMethod, path string, ctx *Context) string {
 // Handler is the main request handler that processes incoming HTTP requests
 // It manages context lifecycle and routes requests to appropriate handlers
 func (r *router) Handler(fctx *fasthttp.RequestCtx) {
-	// Set gonoleks app instance for template engine access
+	// Set Gonoleks app instance for template engine access
 	fctx.SetUserValue("gonoleksApp", r.app)
 	// Acquire context from pool
 	ctx := r.acquireCtx(fctx)
@@ -300,7 +300,7 @@ func (r *router) handleRoute(method, path string, context *Context) bool {
 }
 
 // handleMethodNotAllowed generates a 405 Method Not Allowed response
-// Returns true if the request was handled, false otherwise
+// It returns true if the request was handled, false otherwise
 func (r *router) handleMethodNotAllowed(fctx *fasthttp.RequestCtx, method, path string, context *Context) bool {
 	if allow := r.allowed(method, path, context); len(allow) > 0 {
 		fctx.Response.Header.Set(HeaderAllow, allow)

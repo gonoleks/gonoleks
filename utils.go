@@ -40,7 +40,7 @@ func (h H) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 // resolveAddress validates and resolves the provided port string into a complete address
 // It handles empty ports, ports with colon prefix, and invalid port formats
-// Returns a properly formatted address string with IPv4 as default
+// It returns a properly formatted address string with IPv4 as default
 func resolveAddress(portStr string) string {
 	if portStr == "" {
 		log.Warnf("Empty port format, using default port %s", defaultPort)

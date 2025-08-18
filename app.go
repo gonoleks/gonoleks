@@ -15,38 +15,38 @@ import (
 
 // Options holds all configuration options
 type Options struct {
-	// ServerName to send in response headers
+	// ServerName specifies the server name to send in response headers
 	ServerName string
 
-	// Concurrency is the maximum number of concurrent connections
+	// Concurrency sets the maximum number of concurrent connections
 	Concurrency int
 
-	// ReadBufferSize is the per-connection buffer size for request reading
+	// ReadBufferSize sets the per-connection buffer size for request reading
 	// This also limits the maximum header size
 	// Increase this buffer for clients sending multi-KB RequestURIs
 	// and/or multi-KB headers (e.g., large cookies)
 	ReadBufferSize int
 
-	// WriteBufferSize is the per-connection buffer size for response writing
+	// WriteBufferSize sets the per-connection buffer size for response writing
 	WriteBufferSize int
 
-	// ReadTimeout is the maximum time allowed to read the full request including body
+	// ReadTimeout sets the maximum time allowed to read the full request including body
 	ReadTimeout time.Duration
 
-	// WriteTimeout is the maximum duration before timing out writes of the response
+	// WriteTimeout sets the maximum duration before timing out writes of the response
 	WriteTimeout time.Duration
 
-	// IdleTimeout is the maximum time to wait for the next request when keep-alive is enabled
+	// IdleTimeout sets the maximum time to wait for the next request when keep-alive is enabled
 	IdleTimeout time.Duration
 
-	// MaxRequestBodySize is the maximum request body size
+	// MaxRequestBodySize sets the maximum request body size
 	MaxRequestBodySize int
 
 	// DisableKeepalive disables keep-alive connections, causing the server to close connections
-	// after sending the first response to client
+	// after sending the first response to the client
 	DisableKeepalive bool
 
-	// GETOnly rejects all non-GET requests if set to true
+	// GETOnly rejects all non-GET requests when set to true
 	GETOnly bool
 
 	// DisableHeaderNamesNormalizing prevents header name normalization when enabled
@@ -64,14 +64,14 @@ type Options struct {
 	// CaseInSensitive enables case-insensitive routing
 	CaseInSensitive bool
 
-	// MaxRouteParams is the maximum number of route parameters count
+	// MaxRouteParams sets the maximum number of route parameters
 	MaxRouteParams int
 
-	// MaxRequestURLLength is the maximum request URL length
+	// MaxRequestURLLength sets the maximum request URL length
 	MaxRequestURLLength int
 
 	// HandleMethodNotAllowed enables HTTP 405 Method Not Allowed responses when a route exists
-	// but the requested method is not supported, otherwise returns 404
+	// but the requested method is not supported; otherwise returns 404
 	HandleMethodNotAllowed bool
 
 	// Prefork spawns multiple Go processes listening on the same port when enabled
@@ -186,7 +186,7 @@ func (g *Gonoleks) RunTLS(addr, certFile, keyFile string) error {
 	return g.runServer(address, networkProtocol, tlsConf)
 }
 
-// prepareServer prepares the server for running by setting up router and recreating HTTP server
+// prepareServer prepares the server for running by setting up the router and recreating the HTTP server
 func (g *Gonoleks) prepareServer(addr string) (string, string) {
 	address := resolveAddress(addr)
 	networkProtocol := detectNetworkProtocol(address)
@@ -297,7 +297,7 @@ func (g *Gonoleks) NoRoute(handlers ...handlerFunc) {
 }
 
 // NoMethod registers custom handlers for 405 Method Not Allowed responses
-// Note: Only works when HandleMethodNotAllowed: true
+// Note: Only works when HandleMethodNotAllowed is set to true
 func (g *Gonoleks) NoMethod(handlers ...handlerFunc) {
 	g.router.noMethod = handlers
 }

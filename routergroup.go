@@ -42,7 +42,7 @@ type RouteHandler struct {
 	middlewares handlersChain
 }
 
-// Use registers middleware functions to be executed for all routes of the specified group
+// Use registers middleware functions to be executed for all routes in the specified group
 func (rh *RouteHandler) Use(middleware ...handlerFunc) IRoutes {
 	rh.middlewares = append(rh.middlewares, middleware...)
 	return rh
@@ -53,7 +53,7 @@ func (rh *RouteHandler) Group(relativePath string, handlers ...handlerFunc) *Rou
 	if rh.app.CaseInSensitive {
 		relativePath = strings.ToLower(relativePath)
 	}
-	// Create new middleware slice inheriting from parent
+	// Create a new middleware slice inheriting from the parent
 	newMiddlewares := make(handlersChain, len(rh.middlewares))
 	copy(newMiddlewares, rh.middlewares)
 	// Append any additional handlers passed to Group
@@ -69,7 +69,7 @@ func (rh *RouteHandler) Group(relativePath string, handlers ...handlerFunc) *Rou
 	return rg
 }
 
-// BasePath returns the base path of router group
+// BasePath returns the base path of the router group
 // For example, if group := app.Group("/rest/n/v1/api"), group.BasePath() is "/rest/n/v1/api"
 func (rg *RouterGroup) BasePath() string {
 	return rg.prefix
@@ -86,9 +86,9 @@ func (rh *RouteHandler) Handle(httpMethod, relativePath string, handlers ...hand
 	finalHandlers := make(handlersChain, totalHandlers)
 	// Copy global middleware first
 	copy(finalHandlers[:len(rh.app.middlewares)], rh.app.middlewares)
-	// Then group middleware
+	// Then copy group middleware
 	copy(finalHandlers[len(rh.app.middlewares):len(rh.app.middlewares)+len(rh.middlewares)], rh.middlewares)
-	// Finally route handlers
+	// Finally copy route handlers
 	copy(finalHandlers[len(rh.app.middlewares)+len(rh.middlewares):], handlers)
 	// Register the main route
 	route := rh.app.registerRoute(httpMethod, fullPath, finalHandlers)
