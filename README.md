@@ -11,7 +11,7 @@
 
 # Gonoleks
 
-🐦‍⬛🐦‍⬛🐦‍⬛ **Gonoleks** is a modern, high-performance **web framework** written in [Go][go_url].<br/>It features a [Gin][gin_url] inspired API with lightning-faster **performance**.<br/>Built on [fasthttp][fasthttp_url], the **fastest** HTTP engine for Go.
+🐦‍⬛🐦‍⬛🐦‍⬛ **Gonoleks** is a next-generation, high-performance **web framework** written in [Go][go_url].<br/>It features a [Gin][gin_url] inspired API with lightning-faster **performance**.<br/>Built on [fasthttp][fasthttp_url], the **fastest** HTTP engine for Go.
 
 [![Go version][go_version_img]][go_dev_url]
 [![Go report][go_report_img]][go_report_url]
@@ -21,11 +21,13 @@
 
 ## ✨ Features
 
-- Secure
+- Security-first design
 - Gin-inspired API
-- Memory Efficient
-- Lightweight
-- Fast, fast, fast!
+- Ultra lightweight
+- Middleware support
+- Zero memory allocation
+- Assembly optimizations
+- Extreme performance
 
 ## ⚙️ Installation
 
@@ -274,6 +276,29 @@ func main() {
 
 </div>
 
+## Zero Allocation
+
+Gonoleks is optimized for high-performance with zero-allocation design, meaning values returned from `gonoleks.Context` are not immutable by default and will be re-used across requests. 
+
+<div align="right">
+
+[&nwarr; Back to top](#readme-top)
+
+</div>
+
+## Assembly Optimizations
+
+Gonoleks includes hand-optimized Assembly implementations for critical performance paths, providing ultra-fast string hashing and routing operations.
+
+> [!WARNING]
+> Assembly optimizations are only available on **AMD64** and **ARM64** architectures. Other architectures will automatically use fallback implementations with slightly reduced performance but full compatibility.
+
+<div align="right">
+
+[&nwarr; Back to top](#readme-top)
+
+</div>
+
 ## 🙌🏻 Let's Win Together
 
 If you find Gonoleks useful, please click 👁️ **Watch** button to avoid missing notifications about new versions, and give it a ⭐️ **GitHub Star**.
@@ -286,7 +311,7 @@ We’d love your input:
 - Tweet about the project on your [𝕏 (Twitter)][x_share_url].
 - Write about your experience on [Dev.to][dev_to_url], [Medium][medium_url], etc.
 
-Your PRs, issues and any words are welcome! Thanks 🩵
+Your PRs, issues and any words are welcome! Thanks 🙏🏻
 
 <div align="right">
 
@@ -294,7 +319,7 @@ Your PRs, issues and any words are welcome! Thanks 🩵
 
 </div>
 
-## ☕️ Support the Creator
+## 🫶🏻 Support the Creator
 
 If you want to support Gonoleks, you can ☕️ [Buy Me a Coffee][buymeacoffee_url].
 
@@ -304,7 +329,7 @@ If you want to support Gonoleks, you can ☕️ [Buy Me a Coffee][buymeacoffee_u
 
 </div>
 
-## 👩🏻‍💻👨🏻‍💻 Contributing
+## 👩🏼‍💻👨🏻‍💻👨🏽‍💻 Contributing
 
 Please read the [Contributing Guide][repo_contributing_url] before contributing.
 
