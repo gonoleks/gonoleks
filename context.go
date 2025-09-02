@@ -141,7 +141,7 @@ func (c *Context) Set(key, value any) {
 
 // Get returns the value for the given key, i.e., (value, true)
 // If the value does not exist, it returns (nil, false)
-func (c *Context) Get(key any) (value any, exists bool) {
+func (c *Context) Get(key any) (any, bool) {
 	if key == nil {
 		return nil, false
 	}
@@ -152,8 +152,8 @@ func (c *Context) Get(key any) (value any, exists bool) {
 	if !ok {
 		return nil, false
 	}
-	value, exists = keys[key]
-	return
+	value, exists := keys[key]
+	return value, exists
 }
 
 // MustGet returns the value for the given key if it exists, otherwise it panics
