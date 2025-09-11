@@ -32,7 +32,7 @@
 ## ⚙️ Installation
 
 > [!IMPORTANT]
-> Gonoleks requires **Go version `1.23` or higher** to run.
+> Gonoleks requires **Go version `1.24` or higher** to run.
 
 Install Gonoleks using `go get`:
 
@@ -345,7 +345,7 @@ Please read the [Contributing Guide][repo_contributing_url] before contributing.
 <!-- Go links -->
 
 [go_url]: https://go.dev
-[go_version_img]: https://img.shields.io/badge/Go-1.23+-79d4fd?style=for-the-badge&logo=go&logoColor=79d4fd
+[go_version_img]: https://img.shields.io/badge/Go-1.24+-79d4fd?style=for-the-badge&logo=go&logoColor=79d4fd
 [go_report_img]: https://img.shields.io/badge/Go_report-A+-73db8c?style=for-the-badge
 [go_report_url]: https://goreportcard.com/report/github.com/gonoleks/gonoleks
 [go_dev_url]: https://pkg.go.dev/github.com/gonoleks/gonoleks
