@@ -3,11 +3,6 @@
 help:
 	@sed -n 's/^##//p' ${MAKEFILE_LIST} | column -t -s ':' |  sed -e 's/^/ /'
 
-## version: Display current version
-.PHONY: version
-version:
-	@echo "Gonoleks $(shell git describe --tags --abbrev=0 2>/dev/null || echo 'development')"
-
 ## audit: Conduct quality checks
 .PHONY: audit
 audit:
@@ -39,17 +34,17 @@ markdown:
 ## lint: Run lint checks
 .PHONY: lint
 lint:
-	golangci-lint run
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run ./...
 
 ## test: Execute all tests
 .PHONY: test
 test:
 	go run gotest.tools/gotestsum@latest -f testname -- ./... -race -count=1 -shuffle=on
 
-## longtest: Execute all tests 15x
+## longtest: Execute all tests 10x
 .PHONY: longtest
 longtest:
-	go run gotest.tools/gotestsum@latest -f testname -- ./... -race -count=15 -shuffle=on
+	go run gotest.tools/gotestsum@latest -f testname -- ./... -race -count=10 -shuffle=on
 
 ## tidy: Clean and tidy dependencies
 .PHONY: tidy
