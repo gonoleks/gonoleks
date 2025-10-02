@@ -9,7 +9,7 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/stretchr/testify v1.11.1
 	github.com/valyala/fasthttp v1.66.0
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v3 v3.0.1
 )
 
