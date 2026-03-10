@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/log/v2"
 	"github.com/bytedance/sonic"
-	"github.com/charmbracelet/log"
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"charm.land/log/v2"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/prefork"
 )

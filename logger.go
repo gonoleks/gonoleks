@@ -5,9 +5,9 @@ import (
 	"io"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/log"
-	"github.com/muesli/termenv"
+	"charm.land/lipgloss/v2"
+	"charm.land/log/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/valyala/fasthttp"
 )
 
@@ -91,16 +91,16 @@ var DefaultLogFormatter = func(param LogFormatterParams) string {
 
 // DisableConsoleColor disables color output in the console
 func DisableConsoleColor() {
-	p := termenv.Ascii
-	lipgloss.SetColorProfile(p)
-	log.SetColorProfile(p)
+	profile := colorprofile.Ascii
+	lipgloss.Writer.Profile = profile
+	log.SetColorProfile(profile)
 }
 
 // ForceConsoleColor forces color output in the console
 func ForceConsoleColor() {
-	p := termenv.TrueColor
-	lipgloss.SetColorProfile(p)
-	log.SetColorProfile(p)
+	profile := colorprofile.TrueColor
+	lipgloss.Writer.Profile = profile
+	log.SetColorProfile(profile)
 }
 
 // getStatusStyle returns the appropriate pre-created style for the status code
